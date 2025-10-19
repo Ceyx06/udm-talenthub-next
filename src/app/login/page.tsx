@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import axios from "axios";
 
 export default function HRLoginPage() {
   const router = useRouter();
@@ -13,12 +14,52 @@ export default function HRLoginPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setBusy(true);
+
+    try {
+      const response = await axios.post("/api/auth", {
+        email: username,
+        password: password,
+      });
+
+      const user = response.data.user;
+
+      // Store user data (you can use localStorage, cookies, or session)
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // Role-based redirect
+      let redirectTo;
+      const role = user.role?.toLowerCase();
+
+      if (role === "hr") {
+        redirectTo = "/hr/dashboard";
+      } else if (role === "dean") {
+        redirectTo = "/dean/dashboard";
+      } else {
+        // Default dashboard for other roles
+        redirectTo = "/hr/dashboard";
+      }
+
+      router.push(redirectTo);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        setErr(error.response.data.error || "Login failed");
+      } else {
+        setErr("An error occurred. Please try again.");
+      }
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen">
       {/* Background image */}
       <div
         className="absolute inset-0 bg-center bg-cover"
-        style={{ backgroundImage: "url('/bg-udm.jpg')" }} // ensure this exists in /public
+        style={{ backgroundImage: "url('/bg-udm.jpg')" }}
         aria-hidden
       />
       {/* Dark overlay for contrast */}
@@ -45,7 +86,7 @@ export default function HRLoginPage() {
           </div>
 
           {/* Form */}
-          <form className="px-10 pb-8 pt-4">
+          <form onSubmit={handleSubmit} className="px-10 pb-8 pt-4">
             {/* Username */}
             <div className="mb-3">
               <div className="inline-block rounded-md bg-black/10 px-3 py-1 text-sm">
