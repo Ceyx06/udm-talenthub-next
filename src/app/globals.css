@@ -30,11 +30,16 @@ body {
   margin: 0;
   /* <— removes the 8px default margin */
   padding: 0;
+  /* ensure the radial teal gradient covers the root element too */
+  background-color: var(--teal-100);
+  background-image: radial-gradient(ellipse at top, var(--teal-50) 0%, var(--teal-100) 45%, var(--teal-200) 100%);
+  background-attachment: fixed;
 }
 
 body {
-  background: var(--background);
-  /* keep transparent to show gradient from layout.tsx */
+  /* Default teal background (radial gradient) to avoid white margins during render */
+  background-color: var(--teal-100);
+  background-image: radial-gradient(ellipse at top, var(--teal-50) 0%, var(--teal-100) 45%, var(--teal-200) 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
