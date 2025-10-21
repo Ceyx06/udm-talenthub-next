@@ -1,14 +1,19 @@
-// app/dean/layout.tsx
-import { redirect } from "next/navigation";
+
 import { SidebarDean } from "@/components/layout/SidebarDean";
 
-export default async function DeanLayout({ children }: { children: React.ReactNode }) {
-
-
+export default function DeanLayout({ children }: { children: React.ReactNode }) {
     return (
-        <div className="min-h-screen flex bg-gray-50 text-gray-900">
+        // Inherit the teal background from app/layout.tsx (no extra bg here)
+        <div className="min-h-dvh flex">
             <SidebarDean />
-            <main className="flex-1 p-6">{children}</main>
+
+            {/* Content area */}
+            <main className="flex-1 min-w-0 p-4 md:p-6">
+                {/* Center the page content and keep consistent spacing */}
+                <div className="mx-auto w-full max-w-[1200px] space-y-5">
+                    {children}
+                </div>
+            </main>
         </div>
     );
 }

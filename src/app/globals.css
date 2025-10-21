@@ -1,26 +1,65 @@
+/* Tailwind v4 base */
 @import "tailwindcss";
 
+/* Let layout.tsx control the background (teal gradient) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Theme colors (soft teal palette used across the app) */
+  --background: transparent;
+  --teal-50: #DAF1EF;
+  --teal-100: #CFE9E6;
+  --teal-200: #B8DEDA;
+  --teal-300: #BFE1DD;
+  --teal-700: #0f6e74;
+  --teal-800: #126171;
+  --card-bg: rgba(255,255,255,0.75);
+  --foreground: #0f172a;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+
+/* ---- Reset that causes the "gap" ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /* <— removes the 8px default margin */
+  padding: 0;
 }
 
 body {
   background: var(--background);
+  /* keep transparent to show gradient from layout.tsx */
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Optional: subtle focus + scrollbar styling */
+:focus-visible {
+  outline: 2px solid #0f6e74;
+  outline-offset: 2px;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(15, 110, 116, .35);
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, .6);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
