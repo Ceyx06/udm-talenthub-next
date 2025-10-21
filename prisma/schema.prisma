@@ -1,29 +1,141 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-// Test redis
-
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
-}
-
-enum UserRole {
-    ADMIN
-    USER
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-    id        String   @id @default(cuid())
-    name      String
-    email     String   @unique
-    password  String
-    role      String
-    createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String
+  createdAt DateTime @default(now())
+}
+
+model Applicants {
+  id      String @id
+  name    String
+  email   String @unique
+  job     String
+  college String
+  phone   String
+  files   String
+  stage   String
+}
+
+model Faculty {
+  id             String    @id
+  name           String
+  position       String
+  type           String
+  contract       String
+  recommendation String
+  actions        String
+  Renewal        Renewal[]
+}
+
+model Renewal {
+  id                 String             @id
+  facultyId          String
+  facultyName        String
+  college            String?
+  position           String
+  type               String
+  contractNo         String
+  contractEndDate    DateTime?
+  deanRecommendation DeanRecommendation @default(PENDING)
+  deanRemarks        String
+  deanUserId         String
+  deanActedAt        DateTime?
+  status             RenewalStatus      @default(PENDING_DEAN)
+  statusUpdatedAt    DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime
+  Faculty            Faculty            @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@index([facultyId])
+  @@index([status])
+}
+
+model applications {
+  id               String    @id
+  vacancyId        String
+  fullName         String
+  email            String
+  phone            String
+  coverLetter      String
+  resumeUrl        String
+  status           String    @default("Pending")
+  appliedDate      DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  civilStatus      String?
+  contactNo        String?
+  department       String?
+  desiredPosition  String?
+  dob              DateTime?
+  employmentType   String?
+  experiences      Json?     @default("[]")
+  firstName        String?
+  gender           String?
+  highestDegree    String?
+  idNumber         String?
+  idType           String?
+  lastName         String?
+  licenseExpiry    DateTime?
+  licenseName      String?
+  licenseNo        String?
+  message          String?
+  middleName       String?
+  nationality      String?
+  permanentAddress String?
+  presentAddress   String?
+  qrCode           String?
+  references       Json?     @default("[]")
+  signature        String?
+  signedAt         DateTime?
+  stage            String?
+  trainingHours    String?
+  vacancies        vacancies @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([status])
+  @@index([vacancyId])
+}
+
+model vacancies {
+  id           String         @id
+  college      String
+  title        String
+  status       String
+  description  String
+  requirements String
+  postedDate   DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  applications applications[]
+
+  @@index([college])
+  @@index([status])
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum DeanRecommendation {
+  PENDING
+  RENEW
+  NOT_RENEW
+}
+
+enum RenewalStatus {
+  PENDING_DEAN
+  APPROVED
+  REJECTED
 }
