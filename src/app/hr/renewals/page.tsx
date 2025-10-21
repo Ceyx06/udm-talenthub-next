@@ -1,35 +1,71 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
+import { hrListRenewals } from "@/services/renewals";
+import type { RenewalRow } from "@/types/renewals";
+import { readMock, filterMock } from "@/lib/mockRenewals";
 
-type HRRow = {
-  id: string;
-  name: string | null;
-  college_code: string;
-  contract_no: string;
-  position: string;
-  contract_end: string; // ISO date
-  dean_decision: "pending" | "renew" | "not_renew";
-  hr_status: "Pending Dean" | "Approved" | "Disapproved";
-};
-
-
-export default function Page() {
-  const [rows, setRows] = useState<HRRow[]>([]);
+export default function HRRenewalsPage() {
+  const [rows, setRows] = useState<RenewalRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [useMock, setUseMock] = useState(false);
 
+  async function load(opts?: { search?: string }) {
+    setLoading(true);
+    const q = opts?.search ?? "";
+    try {
+      if (useMock) {
+        setRows(filterMock(readMock(), q));
+      } else {
+        const res = await hrListRenewals({ take: 50, search: q });
+        // if API empty, fall back to mock (nice for demos)
+        setRows(res.items.length ? res.items : filterMock(readMock(), q));
+      }
+    } catch {
+      setRows(filterMock(readMock(), q));
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [useMock]);
 
-  const statusTone = (s: HRRow["hr_status"]) =>
-    s === "Approved" ? "green" : s === "Disapproved" ? "red" : "yellow";
+  const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "—");
+  const deanBadge = (v: RenewalRow["deanRecommendation"]) =>
+    v === "RENEW" ? <Badge tone="green">Renew</Badge>
+    : v === "NOT_RENEW" ? <Badge tone="red">Not Renew</Badge>
+    : <Badge tone="yellow">Pending</Badge>;
+  const statusBadge = (s: RenewalRow["status"]) =>
+    s === "APPROVED" ? <Badge tone="green">Approved</Badge>
+    : s === "REJECTED" ? <Badge tone="red">Rejected</Badge>
+    : <Badge tone="yellow">Pending Dean</Badge>;
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Renewals" subtitle="Manage contract renewals" />
+      <div className="flex items-start justify-between">
+        <PageHeader title="Renewals" subtitle="Manage contract renewals" />
+        <div className="flex gap-2">
+          <input
+            className="border rounded-lg px-3 py-2"
+            placeholder="Search faculty/college/contract…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button onClick={() => load({ search })} className="rounded-md border px-3 py-2">Search</button>
+          <button onClick={() => { setSearch(""); load({ search: "" }); }} className="rounded-md border px-3 py-2">Reset</button>
+          <button
+            onClick={() => setUseMock((v) => !v)}
+            className={`rounded-md px-3 py-2 border ${useMock ? "bg-black text-white" : ""}`}
+            title="Toggle mock data"
+          >
+            {useMock ? "Using Mock" : "Use Mock"}
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-xl border bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-left">
@@ -44,38 +80,27 @@ export default function Page() {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr><td className="p-3 text-gray-500" colSpan={7}>Loading…</td></tr>
-            )}
-            {err && !loading && (
-              <tr><td className="p-3 text-red-600" colSpan={7}>{err}</td></tr>
-            )}
-            {!loading && !err && rows.map((r) => (
+            {loading ? (
+              <tr><td className="p-3" colSpan={7}>Loading...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td className="p-3" colSpan={7}>No records</td></tr>
+            ) : rows.map((r) => (
               <tr key={r.id} className="border-t">
-                <td className="p-3">{r.name ?? "—"}</td>
-                <td><Badge tone="gray">{r.college_code}</Badge></td>
-                <td>{r.contract_no}</td>
+                <td className="p-3">{r.facultyName}</td>
+                <td>{r.college ? <Badge tone="gray">{r.college}</Badge> : "—"}</td>
+                <td>{r.contractNo || "—"}</td>
                 <td>{r.position}</td>
-                <td>{new Date(r.contract_end).toISOString().slice(0, 10)}</td>
-                <td>
-                  {r.dean_decision === "renew" ? (
-                    <Badge tone="blue">Renew</Badge>
-                  ) : r.dean_decision === "not_renew" ? (
-                    <Badge tone="red">Not Renew</Badge>
-                  ) : (
-                    <Badge tone="gray">Pending</Badge>
-                  )}
-                </td>
-                <td>
-                  <Badge tone={statusTone(r.hr_status)}>{r.hr_status}</Badge>
-                </td>
+                <td>{fmtDate(r.contractEndDate)}</td>
+                <td>{deanBadge(r.deanRecommendation)}</td>
+                <td>{statusBadge(r.status)}</td>
               </tr>
             ))}
-            {!loading && !err && rows.length === 0 && (
-              <tr><td className="p-3 text-gray-500" colSpan={7}>No records.</td></tr>
-            )}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={() => load({ search })} className="rounded-md border px-3 py-2">Refresh</button>
       </div>
     </div>
   );

@@ -1,42 +1,82 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
+import { deanListRenewals, deanSubmitRecommendation } from "@/services/renewals";
+import type { RenewalRow } from "@/types/renewals";
+import { readMock, writeMock, updateMockRecommendation } from "@/lib/mockRenewals";
 
-type DeanRow = {
-  id: string;
-  faculty_id: string;
-  name: string | null;
-  emp_type: string | null; // may be null (placeholder from the view)
-  position: string;
-  contract_end: string; // ISO date
-  dean_decision: "pending" | "renew" | "not_renew";
-  dean_remarks: string | null;
-};
-
-export default function Page() {
-  const [rows, setRows] = useState<DeanRow[]>([]);
+export default function DeanRenewalsPage() {
+  const [rows, setRows] = useState<RenewalRow[]>([]);
   const [remarks, setRemarks] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [useMock, setUseMock] = useState(false);
 
-  const RecBadge = ({ d }: { d: DeanRow["dean_decision"] }) =>
-    d === "renew" ? (
-      <Badge tone="blue">Renew</Badge>
-    ) : d === "not_renew" ? (
-      <Badge tone="red">Not Renew</Badge>
-    ) : (
-      <Badge tone="gray">Pending</Badge>
+  async function load() {
+    setLoading(true);
+    try {
+      if (useMock) {
+        setRows(readMock());
+      } else {
+        const res = await deanListRenewals({ take: 50 });
+        setRows(res.items.length ? res.items : readMock()); // fallback to mock if empty
+      }
+    } catch {
+      setRows(readMock());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [useMock]);
+
+  const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "—");
+  const recBadge = (v: RenewalRow["deanRecommendation"]) =>
+    v === "PENDING" ? <Badge tone="yellow">Pending</Badge>
+    : v === "RENEW" ? <Badge tone="green">Renew</Badge>
+    : <Badge tone="red">Not Renew</Badge>;
+
+  async function act(id: string, rec: "RENEW" | "NOT_RENEW") {
+    // optimistic UI
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, deanRecommendation: rec, deanRemarks: remarks || r.deanRemarks, updatedAt: new Date().toISOString() } : r
+      )
     );
 
+    if (useMock) {
+      // persist to localStorage so HR sees it too when using mock
+      const updated = updateMockRecommendation(id, rec, remarks || undefined);
+      setRows(updated);
+    } else {
+      // try real API; if it fails, at least the optimistic UI changed
+      try {
+        await deanSubmitRecommendation(id, { deanRecommendation: rec, deanRemarks: remarks || undefined });
+      } catch (e) {
+        console.warn("PATCH failed—falling back to local mock for consistency", e);
+        // write to mock too so HR (mock) can reflect it
+        writeMock(updateMockRecommendation(id, rec, remarks || undefined));
+      }
+    }
+
+    setRemarks("");
+    setSelectedId(null);
+  }
+
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Faculty Renewals"
-        subtitle="Recommend renewals for faculty contracts"
-      />
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
+        <PageHeader title="Faculty Renewals" subtitle="Recommend renewals for faculty contracts" />
+        <button
+          onClick={() => setUseMock((v) => !v)}
+          className={`rounded-md px-3 py-2 border ${useMock ? "bg-black text-white" : ""}`}
+          title="Toggle mock data"
+        >
+          {useMock ? "Using Mock" : "Use Mock"}
+        </button>
+      </div>
 
       <div className="rounded-xl border bg-white overflow-hidden">
         <table className="w-full text-sm">
@@ -47,79 +87,55 @@ export default function Page() {
               <th>Type</th>
               <th>Contract End</th>
               <th>Recommendation</th>
-              <th className="w-48">Actions</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td className="p-3 text-gray-500" colSpan={6}>
-                  Loading…
+            {loading ? (
+              <tr><td className="p-3" colSpan={6}>Loading...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td className="p-3" colSpan={6}>No records</td></tr>
+            ) : rows.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="p-3">{r.facultyName}</td>
+                <td>{r.position}</td>
+                <td>{r.type}</td>
+                <td>{fmtDate(r.contractEndDate)}</td>
+                <td>{recBadge(r.deanRecommendation)}</td>
+                <td className="space-x-2 p-3">
+                  <button onClick={() => setSelectedId(r.id)} className="rounded-md border px-3 py-1">
+                    Write Remarks
+                  </button>
+                  <button onClick={() => act(r.id, "RENEW")} className="rounded-md bg-green-600 text-white px-3 py-1">
+                    ✓ Renew
+                  </button>
+                  <button onClick={() => act(r.id, "NOT_RENEW")} className="rounded-md bg-red-600 text-white px-3 py-1">
+                    ✗ Not Renew
+                  </button>
                 </td>
               </tr>
-            )}
-            {err && !loading && (
-              <tr>
-                <td className="p-3 text-red-600" colSpan={6}>
-                  {err}
-                </td>
-              </tr>
-            )}
-            {!loading && !err && rows.length === 0 && (
-              <tr>
-                <td className="p-3 text-gray-500" colSpan={6}>
-                  No candidates for renewal.
-                </td>
-              </tr>
-            )}
-            {!loading &&
-              !err &&
-              rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="p-3">{r.name ?? "—"}</td>
-                  <td>{r.position}</td>
-                  <td>
-                    <Badge tone="gray">{r.emp_type ?? "—"}</Badge>
-                  </td>
-                  <td>{new Date(r.contract_end).toISOString().slice(0, 10)}</td>
-                  <td>
-                    <RecBadge d={r.dean_decision} />
-                  </td>
-                  <td className="pr-3 text-right space-x-2">
-                    <button
-                      disabled={busyId === r.id}
-                      onClick={() => {}}
-                      className="rounded-md bg-blue-900 text-white px-3 py-1 disabled:opacity-60"
-                    >
-                      ✓ Renew
-                    </button>
-                    <button
-                      disabled={busyId === r.id}
-                      onClick={() => {}}
-                      className="rounded-md bg-red-500 text-white px-3 py-1 disabled:opacity-60"
-                    >
-                      ✕ Not Renew
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            ))}
           </tbody>
         </table>
       </div>
 
+      {/* Remarks panel */}
       <div className="rounded-xl border bg-white p-4">
-        <div className="text-sm font-medium mb-2">Additional Remarks</div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium">Additional Remarks</h3>
+          <span className="text-xs text-gray-500">
+            {selectedId ? `Target ID: ${selectedId}` : 'Select “Write Remarks”'}
+          </span>
+        </div>
         <textarea
-          className="w-full rounded-md border p-2"
-          rows={4}
+          className="w-full border rounded-lg p-3 min-h-[140px]"
+          placeholder="Enter any additional comments or recommendations..."
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
-          placeholder="Enter any additional comments or recommendations..."
         />
-        <div className="mt-2 text-xs text-gray-500">
-          Tip: The text above is saved when you click “✓ Renew” or “✕ Not
-          Renew.”
-        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Tip: The text above is saved when you click “✓ Renew” or “✗ Not Renew”.
+        </p>
       </div>
     </div>
   );
