@@ -33,8 +33,8 @@ export default function QRCodeModal({ vacancy, onClose }: QRCodeModalProps) {
             const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
                 (typeof window !== 'undefined' ? window.location.origin : '');
 
-            // Create the public job URL
-            const publicUrl = `${baseUrl}/jobs/${encodeURIComponent(vacancy.id)}`;
+            // Create the public job URL - using /apply route
+            const publicUrl = `${baseUrl}/apply?vacancy=${encodeURIComponent(vacancy.id)}`;
 
             // Generate QR code
             const qrDataUrl = await QRCode.toDataURL(publicUrl, {

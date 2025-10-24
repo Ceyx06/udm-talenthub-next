@@ -26,6 +26,7 @@ export default function Page() {
   const [qrVacancy, setQrVacancy] = useState<Vacancy | null>(null);
   const [applicationsVacancy, setApplicationsVacancy] = useState<Vacancy | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
   useEffect(() => { fetchVacancies(); }, []);
 
@@ -36,7 +37,7 @@ export default function Page() {
     try {
       const res = await fetch('/api/hr/vacancies', { cache: 'no-store' });
 
-      // Read as text first; then try JSON so HTML/empty bodies won’t throw
+      // Read as text first; then try JSON so HTML/empty bodies won't throw
       const text = await res.text();
       let payload: any = {};
       try { payload = text ? JSON.parse(text) : {}; } catch { /* ignore non-JSON */ }
@@ -61,11 +62,11 @@ export default function Page() {
       const res = await fetch(`/api/hr/vacancies/${id}`, { method: 'DELETE' });
       const text = await res.text();
       let j: any = {};
-      try { j = text ? JSON.parse(text) : {}; } catch {}
+      try { j = text ? JSON.parse(text) : {}; } catch { }
 
       if (!res.ok) throw new Error(j?.error || text || `HTTP ${res.status}`);
       setVacancies(vacancies.filter(v => v.id !== id));
-    } catch (err:any) {
+    } catch (err: any) {
       alert(err.message || 'Error deleting vacancy');
     }
   };
@@ -100,14 +101,26 @@ export default function Page() {
 
   const isLinkActive = (postedDate: string) => getDaysRemaining(postedDate) > 0;
 
-  const copyPublicLink = (vacancyId: string) => {
+  const copyPublicLink = async (vacancyId: string) => {
     const base =
       process.env.NEXT_PUBLIC_BASE_URL ||
       (typeof window !== "undefined" ? window.location.origin : "");
 
-    const url = `${base}/jobs/${encodeURIComponent(vacancyId)}`; // or `/apply/${id}`
-    navigator.clipboard.writeText(url);
-    alert("Public link copied to clipboard!");
+    // Changed to use /apply?vacancy= format
+    const url = `${base}/apply?vacancy=${vacancyId}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopySuccess(vacancyId);
+
+      // Reset success message after 2 seconds
+      setTimeout(() => {
+        setCopySuccess(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      alert("Failed to copy link");
+    }
   };
 
   if (loading) {
@@ -191,10 +204,33 @@ export default function Page() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
-                          <button onClick={() => showQRCode(v)} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">QR Code</button>
-                          <button onClick={() => copyPublicLink(v.id)} className="px-3 py-1 text-sm border border-blue-300 text-blue-600 rounded-md hover:bg-blue-50">Copy Link</button>
-                          <button onClick={() => handleEdit(v)} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Edit</button>
-                          <button onClick={() => handleDelete(v.id)} className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded-md hover:bg-red-50">Delete</button>
+                          <button
+                            onClick={() => showQRCode(v)}
+                            className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                          >
+                            QR Code
+                          </button>
+                          <button
+                            onClick={() => copyPublicLink(v.id)}
+                            className={`px-3 py-1 text-sm border rounded-md transition-colors ${copySuccess === v.id
+                                ? 'border-green-300 text-green-600 bg-green-50'
+                                : 'border-blue-300 text-blue-600 hover:bg-blue-50'
+                              }`}
+                          >
+                            {copySuccess === v.id ? '✓ Copied!' : 'Copy Link'}
+                          </button>
+                          <button
+                            onClick={() => handleEdit(v)}
+                            className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(v.id)}
+                            className="px-3 py-1 text-sm border border-red-300 text-red-600 rounded-md hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
