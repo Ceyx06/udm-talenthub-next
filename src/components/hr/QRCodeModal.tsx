@@ -19,6 +19,7 @@ export default function QRCodeModal({ vacancy, onClose }: QRCodeModalProps) {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         generateQRCode();
@@ -33,8 +34,8 @@ export default function QRCodeModal({ vacancy, onClose }: QRCodeModalProps) {
             const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
                 (typeof window !== 'undefined' ? window.location.origin : '');
 
-            // Create the public job URL - using /apply route
-            const publicUrl = `${baseUrl}/apply?vacancy=${encodeURIComponent(vacancy.id)}`;
+            // Create the public job URL - CHANGED to /jobs route
+            const publicUrl = `${baseUrl}/jobs/${encodeURIComponent(vacancy.id)}`;
 
             // Generate QR code
             const qrDataUrl = await QRCode.toDataURL(publicUrl, {
@@ -65,13 +66,20 @@ export default function QRCodeModal({ vacancy, onClose }: QRCodeModalProps) {
         link.click();
     };
 
-    const handleCopyLink = () => {
+    const handleCopyLink = async () => {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
             (typeof window !== 'undefined' ? window.location.origin : '');
         const publicUrl = `${baseUrl}/jobs/${encodeURIComponent(vacancy.id)}`;
 
-        navigator.clipboard.writeText(publicUrl);
-        alert('Link copied to clipboard!');
+        try {
+            await navigator.clipboard.writeText(publicUrl);
+            setCopied(true);
+            // Reset copied state after 2 seconds
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy link to clipboard');
+        }
     };
 
     const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -163,9 +171,12 @@ export default function QRCodeModal({ vacancy, onClose }: QRCodeModalProps) {
                     <div className="flex gap-3 p-6 border-t bg-gray-50 rounded-b-xl">
                         <button
                             onClick={handleCopyLink}
-                            className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                            className={`flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-colors ${copied
+                                    ? 'bg-green-50 border-green-300 text-green-700'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                                }`}
                         >
-                            📋 Copy Link
+                            {copied ? '✓ Copied!' : '📋 Copy Link'}
                         </button>
                         <button
                             onClick={handleDownload}

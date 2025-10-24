@@ -1,16 +1,40 @@
-// src/app/api/hr/vacancies/[id]/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const runtime = "nodejs";
-
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+// Public API: Get single vacancy for application page
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await prisma.vacancy.delete({ where: { id: params.id } });
-    return NextResponse.json({ ok: true });
+    const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
+
+    const vacancy = await prisma.vacancy.findFirst({
+      where: {
+        id: params.id,
+        // Accept both "OPEN" and "Active" status
+        status: { in: ["OPEN", "Active"] },
+        postedDate: { gte: cutoff }
+      },
+      select: {
+        id: true,
+        title: true,
+        college: true,
+        status: true,
+        requirements: true,
+        description: true,
+        postedDate: true
+      },
+    });
+
+    if (!vacancy) {
+      return NextResponse.json({ error: "Vacancy not found or expired" }, { status: 404 });
+    }
+
+    // Normalize status to "OPEN" for the frontend
+    return NextResponse.json({
+      ...vacancy,
+      status: "OPEN"
+    });
   } catch (e: any) {
-    if (e?.code === "P2025") return NextResponse.json({ error: "Vacancy not found" }, { status: 404 });
-    console.error("DELETE /api/hr/vacancies/:id", e);
-    return NextResponse.json({ error: "Failed to delete vacancy" }, { status: 500 });
+    console.error('Error fetching vacancy:', e);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

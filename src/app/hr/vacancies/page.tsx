@@ -211,15 +211,6 @@ export default function Page() {
                             QR Code
                           </button>
                           <button
-                            onClick={() => copyPublicLink(v.id)}
-                            className={`px-3 py-1 text-sm border rounded-md transition-colors ${copySuccess === v.id
-                                ? 'border-green-300 text-green-600 bg-green-50'
-                                : 'border-blue-300 text-blue-600 hover:bg-blue-50'
-                              }`}
-                          >
-                            {copySuccess === v.id ? '✓ Copied!' : 'Copy Link'}
-                          </button>
-                          <button
                             onClick={() => handleEdit(v)}
                             className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
                           >
