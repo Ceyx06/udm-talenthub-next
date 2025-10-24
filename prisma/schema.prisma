@@ -103,3 +103,19 @@ model Application {
   @@index([status])
   @@map("applications")
 }
+
+model Renewal {
+  id                  String   @id @default(cuid())
+  facultyName         String
+  college             String
+  contractNo          String
+  position            String
+  endDate             DateTime
+  deanRecommendation  String?  // "RENEW" | "NOT_RENEW" | null
+  deanRemarks         String?
+  status              String   @default("Pending")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("renewals")
+}

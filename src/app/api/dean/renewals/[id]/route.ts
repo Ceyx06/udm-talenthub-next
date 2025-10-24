@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { DeanRecommendation } from "@prisma/client";
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> }; // ← Changed to Promise
 
 // PATCH /api/dean/renewals/:id
 // body: { deanRecommendation: "RENEW" | "NOT_RENEW", deanRemarks?: string }
 export async function PATCH(req: Request, { params }: Params) {
   try {
-    const id = params.id;
+    const { id } = await params; // ← Added await
     const body = await req.json();
     const rec = body?.deanRecommendation;
 
@@ -19,20 +18,21 @@ export async function PATCH(req: Request, { params }: Params) {
       );
     }
 
+    // Update the renewal record
     const updated = await prisma.renewal.update({
       where: { id },
       data: {
-        deanRecommendation: rec as DeanRecommendation,
-        deanRemarks: body?.deanRemarks ?? null,
-        deanUserId: "TODO-current-dean-id", // wire to auth when ready
-        deanActedAt: new Date(),
+        deanRecommendation: rec,
+        deanRemarks: body.deanRemarks || null,
       },
     });
 
     return NextResponse.json(updated);
-  } catch (e: any) {
-    if (e?.code === "P2025") return NextResponse.json({ error: "Not found" }, { status: 404 });
-    console.error("PATCH /api/dean/renewals/[id]", e);
-    return NextResponse.json({ error: "Failed to update renewal" }, { status: 500 });
+  } catch (error) {
+    console.error("Error updating renewal:", error);
+    return NextResponse.json(
+      { error: "Failed to update renewal" },
+      { status: 500 }
+    );
   }
 }

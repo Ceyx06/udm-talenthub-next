@@ -1,7 +1,9 @@
+// src/app/hr/dashboard/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import PageHeader from "@/components/common/PageHeader";
 import {
     BarChart,
     Bar,
@@ -12,10 +14,7 @@ import {
     Legend,
     ResponsiveContainer,
     Cell,
-    LineChart,
-    Line,
 } from "recharts";
-import { Users, Clock, FileText, Calendar } from "lucide-react";
 
 /* ---------------- Types ---------------- */
 type DeptKey = "CAS" | "CHS" | "CBPM" | "CCJ" | "CED" | "CCS";
@@ -37,14 +36,22 @@ interface TimeToFillRow {
 interface PipelineStage {
     stage: "APPLICATIONS" | "SCREENING" | "INTERVIEWS" | "OFFERS" | "ACCEPTED";
     count: number;
-    label: string;
+}
+
+interface PendingActionCounts {
+    toReview: number;
+    offersToApprove: number;
+    contractsToRenew: number;
 }
 
 /* ---------------- Demo data ---------------- */
 const COLORS = {
-    teal: "#0d9488",
-    cyan: "#06b6d4",
+    tealA: "#0d9488",
+    tealB: "#10b981",
+    tealC: "#2dd4bf",
     amber: "#f59e0b",
+    red: "#ef4444",
+    cyan: "#06b6d4",
 };
 
 const MOCK_OPEN_ROLES: OpenRole[] = [
@@ -68,18 +75,14 @@ const MOCK_TTF: TimeToFillRow[] = [
 ];
 
 const MOCK_PIPELINE: PipelineStage[] = [
-    { stage: "APPLICATIONS", count: 420, label: "Applied" },
-    { stage: "SCREENING", count: 335, label: "Screening" },
-    { stage: "INTERVIEWS", count: 260, label: "Interview" },
-    { stage: "OFFERS", count: 140, label: "Offer" },
-    { stage: "ACCEPTED", count: 95, label: "Hired" },
+    { stage: "APPLICATIONS", count: 420 },
+    { stage: "SCREENING", count: 335 },
+    { stage: "INTERVIEWS", count: 260 },
+    { stage: "OFFERS", count: 140 },
+    { stage: "ACCEPTED", count: 95 },
 ];
 
-const MOCK_PENDING = {
-    toReview: 23,
-    offersToApprove: 6,
-    contractsToRenew: 4
-};
+const MOCK_PENDING: PendingActionCounts = { toReview: 23, offersToApprove: 6, contractsToRenew: 4 };
 
 const MOCK_FILLED = {
     month: { value: 12, target: 18 },
@@ -87,342 +90,308 @@ const MOCK_FILLED = {
     year: { value: 92, target: 120 },
 };
 
-const MOCK_MONTHLY_TREND = [
-    { month: "May", filled: 8 },
-    { month: "Jun", filled: 11 },
-    { month: "Jul", filled: 9 },
-    { month: "Aug", filled: 14 },
-    { month: "Sep", filled: 13 },
-    { month: "Oct", filled: 12 },
-];
-
-/* ---------------- Simple Components ---------------- */
-function BigNumber({
-    label,
-    value,
-    icon: Icon,
-    color = "teal",
-    onClick
-}: {
-    label: string;
-    value: number | string;
-    icon: React.ComponentType<{ size?: number }>;
-    color?: "teal" | "cyan" | "amber" | "slate";
-    onClick?: () => void;
-}) {
-    const colors = {
-        teal: "bg-teal-600 text-white",
-        cyan: "bg-cyan-600 text-white",
-        amber: "bg-amber-500 text-white",
-        slate: "bg-slate-600 text-white",
-    };
-
-    return (
-        <button
-            onClick={onClick}
-            className={`${colors[color]} rounded-xl p-5 text-left w-full hover:opacity-90 transition`}
-        >
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-sm opacity-90">{label}</span>
-                <Icon size={20} />
-            </div>
-            <div className="text-4xl font-bold">{value}</div>
-        </button>
-    );
-}
-
-function SimpleProgress({
-    label,
-    current,
-    target
-}: {
-    label: string;
-    current: number;
-    target: number;
-}) {
-    const percent = Math.round((current / target) * 100);
-    const isGood = percent >= 75;
-
-    return (
-        <div className="bg-white rounded-xl p-4 border">
-            <div className="flex justify-between mb-2">
-                <span className="font-medium text-slate-700">{label}</span>
-                <span className="text-slate-600">{current} / {target}</span>
-            </div>
-            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                    className={`h-full ${isGood ? 'bg-teal-500' : 'bg-amber-500'}`}
-                    style={{ width: `${Math.min(percent, 100)}%` }}
-                />
-            </div>
-            <div className="text-right text-xs text-slate-500 mt-1">{percent}%</div>
-        </div>
-    );
-}
-
-function ChartCard({
+/* ---------------- Tiny components (inline) ---------------- */
+function Panel({
     title,
-    children
+    subtitle,
+    children,
 }: {
     title: string;
+    subtitle?: string;
     children: React.ReactNode;
 }) {
     return (
-        <div className="bg-white rounded-xl border p-4">
-            <h3 className="font-semibold text-slate-800 mb-4">{title}</h3>
+        <section className="rounded-2xl border bg-[#E7F3F1] p-4 shadow-sm">
+            <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+            {subtitle && <p className="text-[11px] text-gray-600 mb-2">{subtitle}</p>}
             {children}
+        </section>
+    );
+}
+
+function Progress({ value, target, label }: { value: number; target: number; label: string }) {
+    const pct = Math.min(100, Math.round((value / target) * 100));
+    return (
+        <div className="rounded-2xl border bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between text-sm mb-1">
+                <span className="font-semibold text-slate-700">{label}</span>
+                <span className="text-slate-500">
+                    {value}/{target}
+                </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-teal-100 overflow-hidden">
+                <div style={{ width: `${pct}%` }} className="h-full bg-teal-600" />
+            </div>
         </div>
+    );
+}
+
+/** KPI-style stat tile (matches your top 4 cards look) */
+function StatTile({
+    title,
+    value,
+    subtitle,
+    tone = "teal",
+    onClick,
+}: {
+    title: string;
+    value: number | string;
+    subtitle?: string;
+    tone?: "teal" | "mint" | "sand" | "sky";
+    onClick?: () => void;
+}) {
+    const tones: Record<string, { container: string; icon: string }> = {
+        teal: { container: "bg-teal-600 text-white", icon: "bg-white/25 text-white" },
+        mint: { container: "bg-teal-50 text-slate-900 border border-teal-100", icon: "bg-teal-100 text-teal-700" },
+        sand: { container: "bg-amber-50 text-slate-900 border border-amber-100", icon: "bg-amber-100 text-amber-700" },
+        sky: { container: "bg-cyan-50 text-slate-900 border border-cyan-100", icon: "bg-cyan-100 text-cyan-700" },
+    };
+
+    const t = tones[tone];
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={[
+                "rounded-2xl w-full p-4 shadow-sm border transition text-left",
+                "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500",
+                t.container,
+            ].join(" ")}
+        >
+            <div className="flex items-start justify-between">
+                <div className="text-[11px] font-medium opacity-90">{title}</div>
+                <span className={["inline-flex items-center justify-center rounded-lg p-1.5", t.icon].join(" ")}>
+                    <span className="text-[11px]">▣</span>
+                </span>
+            </div>
+            <div className="mt-1 text-3xl font-extrabold tracking-tight">{value}</div>
+            {subtitle && <div className="mt-1 text-[11px] opacity-90">{subtitle}</div>}
+        </button>
     );
 }
 
 /* ---------------- Page ---------------- */
 export default function HRDashboard() {
     const router = useRouter();
+
+    // Mock data (swap for API when ready)
     const [openRoles] = useState<OpenRole[]>(MOCK_OPEN_ROLES);
     const [ttfRows] = useState<TimeToFillRow[]>(MOCK_TTF);
+    const [pending] = useState<PendingActionCounts>(MOCK_PENDING);
 
-    // Simple calculations
-    const avgTTF = useMemo(() => {
-        const total = ttfRows.reduce((sum, r) => sum + r.avgDays, 0);
-        return Math.round(total / ttfRows.length);
-    }, [ttfRows]);
-
+    // Aggregations
     const openByDept = useMemo(() => {
-        const result: { dept: DeptKey; count: number }[] = [];
-        const depts: DeptKey[] = ["CAS", "CHS", "CBPM", "CCJ", "CED", "CCS"];
-
-        depts.forEach(d => {
-            const count = openRoles.filter(r => r.department === d).length;
-            result.push({ dept: d, count });
+        const byDept: Record<DeptKey, { dept: DeptKey; open: number; avgDaysOpen: number }> = {
+            CAS: { dept: "CAS", open: 0, avgDaysOpen: 0 },
+            CHS: { dept: "CHS", open: 0, avgDaysOpen: 0 },
+            CBPM: { dept: "CBPM", open: 0, avgDaysOpen: 0 },
+            CCJ: { dept: "CCJ", open: 0, avgDaysOpen: 0 },
+            CED: { dept: "CED", open: 0, avgDaysOpen: 0 },
+            CCS: { dept: "CCS", open: 0, avgDaysOpen: 0 },
+        };
+        for (const r of openRoles) {
+            byDept[r.department].open++;
+            byDept[r.department].avgDaysOpen += r.daysOpen;
+        }
+        (Object.keys(byDept) as DeptKey[]).forEach((d) => {
+            if (byDept[d].open > 0) byDept[d].avgDaysOpen = +(byDept[d].avgDaysOpen / byDept[d].open).toFixed(1);
         });
-
-        return result;
+        return Object.values(byDept);
     }, [openRoles]);
 
     const ttfByDept = useMemo(() => {
-        const result: { dept: DeptKey; avgDays: number }[] = [];
-        const depts: DeptKey[] = ["CAS", "CHS", "CBPM", "CCJ", "CED", "CCS"];
-
-        depts.forEach(d => {
-            const rows = ttfRows.filter(r => r.department === d);
-            if (rows.length > 0) {
-                const avg = rows.reduce((sum, r) => sum + r.avgDays, 0) / rows.length;
-                result.push({ dept: d, avgDays: Math.round(avg) });
-            } else {
-                result.push({ dept: d, avgDays: 0 });
-            }
+        const map: Record<DeptKey, { dept: DeptKey; avgDays: number; items: TimeToFillRow[] }> = {
+            CAS: { dept: "CAS", avgDays: 0, items: [] },
+            CHS: { dept: "CHS", avgDays: 0, items: [] },
+            CBPM: { dept: "CBPM", avgDays: 0, items: [] },
+            CCJ: { dept: "CCJ", avgDays: 0, items: [] },
+            CED: { dept: "CED", avgDays: 0, items: [] },
+            CCS: { dept: "CCS", avgDays: 0, items: [] },
+        };
+        for (const row of ttfRows) {
+            map[row.department].items.push(row);
+            map[row.department].avgDays += row.avgDays;
+        }
+        (Object.keys(map) as DeptKey[]).forEach((d) => {
+            if (map[d].items.length) map[d].avgDays = +(map[d].avgDays / map[d].items.length).toFixed(1);
         });
-
-        return result;
+        return Object.values(map);
     }, [ttfRows]);
 
+    // chart colors
+    const cellColor = (i: number) =>
+        [COLORS.tealA, COLORS.tealB, COLORS.tealC, COLORS.cyan, COLORS.amber, COLORS.red][i % 6];
+
+    // Navigate helpers
+    const gotoApplicants = (stage: PipelineStage["stage"]) =>
+        router.push(`/hr/applicants?stage=${encodeURIComponent(stage)}`);
+    const gotoOpenVacancies = (dept: DeptKey) =>
+        router.push(`/hr/vacancies?status=OPEN&dept=${encodeURIComponent(dept)}`);
+    const gotoTTFAnalytics = (dept: DeptKey) =>
+        router.push(`/hr/analytics/ttf?dept=${encodeURIComponent(dept)}`);
+
     return (
-        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-slate-900">HR Dashboard</h1>
-                <p className="text-slate-600 mt-1">Overview of hiring status and progress</p>
+        <div className="p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <PageHeader
+                    title="HR Dashboard"
+                    subtitle="Efficiency, workload, and performance tracking of the hiring process"
+                />
             </div>
 
-            {/* Top Numbers - What You Need to Know Right Now */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <BigNumber
-                    label="Open Positions"
-                    value={openRoles.length}
-                    icon={Users}
-                    color="teal"
-                    onClick={() => router.push("/hr/vacancies?status=OPEN")}
+            {/* --- Pending Actions as KPI tiles --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <StatTile
+                    title="Applications to Review"
+                    value={pending.toReview}
+                    subtitle="Awaiting screening"
+                    tone="teal"
+                    onClick={() => router.push("/hr/applicants?stage=APPLICATIONS")}
                 />
-                <BigNumber
-                    label="Need Your Review"
-                    value={MOCK_PENDING.toReview}
-                    icon={FileText}
-                    color="cyan"
-                    onClick={() => router.push("/hr/applicants")}
+                <StatTile
+                    title="Offers to Approve"
+                    value={pending.offersToApprove}
+                    subtitle="Pending approvals"
+                    tone="sky"
+                    onClick={() => router.push("/hr/applicants?stage=OFFERS")}
                 />
-                <BigNumber
-                    label="Average Days to Fill"
-                    value={`${avgTTF}d`}
-                    icon={Clock}
-                    color="slate"
-                />
-                <BigNumber
-                    label="Contracts to Renew"
-                    value={MOCK_PENDING.contractsToRenew}
-                    icon={Calendar}
-                    color="amber"
+                <StatTile
+                    title="Contracts to Renew"
+                    value={pending.contractsToRenew}
+                    subtitle="Monitor queue"
+                    tone="sand"
                     onClick={() => router.push("/hr/renewals")}
                 />
             </div>
 
-            {/* Your Progress */}
-            <div className="bg-teal-50 rounded-xl border border-teal-100 p-5">
-                <h2 className="text-lg font-semibold text-slate-800 mb-4">Your Hiring Progress</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <SimpleProgress
-                        label="This Month"
-                        current={MOCK_FILLED.month.value}
+            {/* Row: Progress + Expanded Pipeline */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-3">
+                    <Progress
+                        label="Positions Filled — This Month"
+                        value={MOCK_FILLED.month.value}
                         target={MOCK_FILLED.month.target}
                     />
-                    <SimpleProgress
-                        label="This Quarter"
-                        current={MOCK_FILLED.quarter.value}
+                    <Progress
+                        label="Positions Filled — This Quarter"
+                        value={MOCK_FILLED.quarter.value}
                         target={MOCK_FILLED.quarter.target}
                     />
-                    <SimpleProgress
-                        label="This Year"
-                        current={MOCK_FILLED.year.value}
+                    <Progress
+                        label="Positions Filled — This Year"
+                        value={MOCK_FILLED.year.value}
                         target={MOCK_FILLED.year.target}
                     />
                 </div>
+
+                {/* Expanded across 2 columns */}
+                <div className="lg:col-span-2">
+                    <Panel
+                        title="Hiring Pipeline Status"
+                        subtitle="Funnel from Applications → Accepted (click a bar to open Applicants)"
+                    >
+                        <div className="h-80">
+                            <ResponsiveContainer>
+                                <BarChart
+                                    data={MOCK_PIPELINE}
+                                    barCategoryGap={20}
+                                    margin={{ top: 10, right: 16, left: 0, bottom: 10 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                                    <XAxis
+                                        dataKey="stage"
+                                        stroke="#64748b"
+                                        interval={0}       // <- show ALL five labels
+                                        tick={{ fontSize: 12 }}
+                                        height={40}
+                                        tickMargin={8}
+                                    />
+                                    <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Bar
+                                        dataKey="count"
+                                        name="Count"
+                                        radius={[6, 6, 0, 0]}
+                                        onClick={(e) => gotoApplicants((e?.payload as any)?.stage)}
+                                    >
+                                        {MOCK_PIPELINE.map((_, i) => (
+                                            <Cell key={i} cursor="pointer" fill={cellColor(i)} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Panel>
+                </div>
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Hiring Funnel */}
-                <ChartCard title="Hiring Funnel (How Applicants Progress)">
-                    <div className="h-80">
-                        <ResponsiveContainer>
-                            <BarChart
-                                data={MOCK_PIPELINE}
-                                layout="vertical"
-                                margin={{ left: 80 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis type="number" stroke="#64748b" />
-                                <YAxis
-                                    type="category"
-                                    dataKey="label"
-                                    stroke="#64748b"
-                                    width={70}
-                                />
-                                <Tooltip />
-                                <Bar
-                                    dataKey="count"
-                                    fill={COLORS.teal}
-                                    radius={[0, 6, 6, 0]}
-                                    onClick={(e) => {
-                                        const stage = (e?.payload as any)?.stage;
-                                        if (stage) router.push(`/hr/applicants?stage=${stage}`);
-                                    }}
-                                >
-                                    {MOCK_PIPELINE.map((_, i) => (
-                                        <Cell
-                                            key={i}
-                                            fill={i === 0 ? COLORS.teal : i === 4 ? "#059669" : COLORS.cyan}
-                                            cursor="pointer"
-                                        />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                        Click any bar to see applicants at that stage
-                    </p>
-                </ChartCard>
-
-                {/* Monthly Trend */}
-                <ChartCard title="Positions Filled Each Month">
-                    <div className="h-80">
-                        <ResponsiveContainer>
-                            <LineChart data={MOCK_MONTHLY_TREND}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="month" stroke="#64748b" />
-                                <YAxis stroke="#64748b" />
-                                <Tooltip />
-                                <Line
-                                    type="monotone"
-                                    dataKey="filled"
-                                    stroke={COLORS.teal}
-                                    strokeWidth={3}
-                                    dot={{ r: 6, fill: COLORS.teal }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </ChartCard>
-
-                {/* Open by Department */}
-                <ChartCard title="Open Positions by Department">
-                    <div className="h-80">
+            {/* Row: Current Open Positions + Time to Fill */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Panel
+                    title="Current Open Positions"
+                    subtitle="Number open by department & average days open (click a bar)"
+                >
+                    <div className="h-72">
                         <ResponsiveContainer>
                             <BarChart data={openByDept}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
                                 <XAxis dataKey="dept" stroke="#64748b" />
-                                <YAxis stroke="#64748b" />
+                                <YAxis yAxisId="left" stroke="#64748b" />
+                                <YAxis yAxisId="right" orientation="right" stroke="#64748b" />
                                 <Tooltip />
+                                <Legend />
                                 <Bar
-                                    dataKey="count"
-                                    fill={COLORS.teal}
+                                    yAxisId="left"
+                                    dataKey="open"
+                                    name="Open Roles"
                                     radius={[6, 6, 0, 0]}
-                                    onClick={(e) => {
-                                        const dept = (e?.payload as any)?.dept;
-                                        if (dept) router.push(`/hr/vacancies?dept=${dept}`);
-                                    }}
+                                    onClick={(e) => gotoOpenVacancies((e?.payload as any)?.dept)}
                                 >
                                     {openByDept.map((_, i) => (
-                                        <Cell key={i} fill={COLORS.teal} cursor="pointer" />
+                                        <Cell key={i} cursor="pointer" fill={COLORS.tealA} />
+                                    ))}
+                                </Bar>
+                                <Bar
+                                    yAxisId="right"
+                                    dataKey="avgDaysOpen"
+                                    name="Avg Days Open"
+                                    radius={[6, 6, 0, 0]}
+                                    onClick={(e) => gotoOpenVacancies((e?.payload as any)?.dept)}
+                                >
+                                    {openByDept.map((_, i) => (
+                                        <Cell key={i} cursor="pointer" fill={COLORS.amber} />
                                     ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                </ChartCard>
+                </Panel>
 
-                {/* Time to Fill */}
-                <ChartCard title="Average Days to Fill by Department">
-                    <div className="h-80">
+                <Panel title="Time to Fill" subtitle="Average days to fill by department (click a bar)">
+                    <div className="h-72">
                         <ResponsiveContainer>
                             <BarChart data={ttfByDept}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
                                 <XAxis dataKey="dept" stroke="#64748b" />
                                 <YAxis stroke="#64748b" />
                                 <Tooltip />
+                                <Legend />
                                 <Bar
                                     dataKey="avgDays"
-                                    fill={COLORS.cyan}
+                                    name="Avg Days to Fill"
                                     radius={[6, 6, 0, 0]}
+                                    onClick={(e) => gotoTTFAnalytics((e?.payload as any)?.dept)}
                                 >
                                     {ttfByDept.map((_, i) => (
-                                        <Cell key={i} fill={COLORS.cyan} />
+                                        <Cell key={i} cursor="pointer" fill={COLORS.tealB} />
                                     ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                        Lower is better. Target: 15 days or less
-                    </p>
-                </ChartCard>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl border p-5">
-                <h3 className="font-semibold text-slate-800 mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <button
-                        onClick={() => router.push("/hr/applicants")}
-                        className="p-4 border-2 border-teal-200 rounded-lg hover:bg-teal-50 transition text-left"
-                    >
-                        <div className="font-medium text-slate-800">Review Applications</div>
-                        <div className="text-sm text-slate-600 mt-1">{MOCK_PENDING.toReview} waiting</div>
-                    </button>
-                    <button
-                        onClick={() => router.push("/hr/vacancies")}
-                        className="p-4 border-2 border-slate-200 rounded-lg hover:bg-slate-50 transition text-left"
-                    >
-                        <div className="font-medium text-slate-800">View All Vacancies</div>
-                        <div className="text-sm text-slate-600 mt-1">{openRoles.length} currently open</div>
-                    </button>
-                    <button
-                        onClick={() => router.push("/hr/analytics")}
-                        className="p-4 border-2 border-cyan-200 rounded-lg hover:bg-cyan-50 transition text-left"
-                    >
-                        <div className="font-medium text-slate-800">View Detailed Analytics</div>
-                        <div className="text-sm text-slate-600 mt-1">AI predictions & insights</div>
-                    </button>
-                </div>
+                </Panel>
             </div>
         </div>
     );
