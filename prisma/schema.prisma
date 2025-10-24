@@ -8,8 +8,8 @@ datasource db {
 }
 
 enum UserRole {
-    ADMIN
-    USER
+  ADMIN
+  USER
 }
 
 model User {
@@ -19,4 +19,87 @@ model User {
   password  String
   role      String
   createdAt DateTime @default(now())
+}
+
+model Vacancy {
+  id           String        @id @default(cuid())
+  title        String
+  college      String
+  status       String // e.g. "OPEN" | "CLOSED" | "DRAFT"
+  requirements String
+  description  String
+  postedDate   DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
+
+  @@index([status])
+  @@index([college])
+  @@map("vacancies")
+}
+
+model Application {
+  id String @id @default(cuid())
+
+  // Relation (required)
+  vacancyId String
+  vacancy   Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+
+  // Core required fields from your original schema
+  fullName    String
+  email       String
+  phone       String // your API can map contactNo -> phone
+  coverLetter String
+  resumeUrl   String
+
+  // Original status/dates
+  status      String   @default("Pending") // if you prefer "PENDING", change here
+  appliedDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // -------- Optional extended fields you added --------
+  // Names & contact (optional duplicates kept for compatibility)
+  firstName  String?
+  middleName String?
+  lastName   String?
+  contactNo  String?
+
+  // Personal details
+  dob              DateTime?
+  gender           String?
+  civilStatus      String?
+  presentAddress   String?
+  permanentAddress String?
+  nationality      String?
+  idType           String?
+  idNumber         String?
+
+  // Position
+  desiredPosition String?
+  department      String?
+  employmentType  String?
+
+  // Education / credentials
+  highestDegree String?
+  trainingHours String? // keep as String? to match your current code
+  licenseName   String?
+  licenseNo     String?
+  licenseExpiry DateTime?
+
+  // Arrays / JSON (defaults to empty array)
+  experiences Json? @default("[]")
+  references  Json? @default("[]")
+
+  // Consent / misc
+  signature String?
+  signedAt  DateTime?
+  qrCode    String?
+  message   String?
+  stage     String?
+
+  @@index([vacancyId])
+  @@index([email])
+  @@index([status])
+  @@map("applications")
 }

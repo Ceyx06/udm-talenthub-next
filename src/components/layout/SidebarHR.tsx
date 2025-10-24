@@ -10,6 +10,7 @@ type Item = { href: string; label: string; icon: React.ReactNode };
 
 const NAV: Item[] = [
   { href: "/hr/dashboard", label: "Dashboard", icon: <span>📊</span> },
+  { href: "/hr/analytics", label: "Analytics", icon: <span>📈</span> }, // <-- NEW
   { href: "/hr/vacancies", label: "Vacancies", icon: <span>🧾</span> },
   { href: "/hr/applicants", label: "Applicants", icon: <span>👥</span> },
   { href: "/hr/evaluation", label: "Evaluation", icon: <span>🧪</span> },
@@ -32,12 +33,12 @@ export function SidebarHR() {
       ].join(" ")}
     >
       {/* Brand */}
-  <div className="px-4 pt-3 pb-2 border-b border-[rgba(15,110,116,0.08)]">
+      <div className="px-4 pt-3 pb-2 border-b border-[rgba(15,110,116,0.08)]">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl overflow-hidden ring-1 ring-white/40 bg-[var(--teal-800)] grid place-items-center">
             {logoOk ? (
               <Image
-                src="/logo-udm.png"           // ensure /public/logo-udm.png exists
+                src="/logo-udm.png"
                 alt="UDM"
                 width={36}
                 height={36}
@@ -80,14 +81,14 @@ export function SidebarHR() {
         })}
       </nav>
 
-      {/* Footer pinned to bottom */}
+      {/* Footer */}
       <div className="sticky bottom-0 px-3 py-3 bg-[var(--teal-300)]/65 backdrop-blur-sm border-t border-[rgba(15,110,116,0.06)]">
         <div className="rounded-xl border bg-[var(--card-bg)] px-3 py-2 text-xs text-slate-600 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
             <span>HR User</span>
           </div>
-          <span className="text-emerald-700 font-medium">Active</span>
+
         </div>
 
         <Link

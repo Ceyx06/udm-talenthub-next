@@ -1,349 +1,348 @@
-// src/app/dean/dashboard/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import PageHeader from "@/components/common/PageHeader";
-import StatCard from "@/components/common/StatCard";
+import { useMemo, useState } from "react";
 import {
-    AreaChart, Area,
-    LineChart, Line,
-    BarChart, Bar,
-    RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    Cell,
+    LineChart,
+    Line,
 } from "recharts";
+import { Users, Clock, FileText, Calendar, Eye } from "lucide-react";
 
-/* ========== Types ========== */
-type ReqTrend = { month: string; submitted: number; approved: number; rejected: number };
-type MixRow = { type: string; count: number; percentage: number };
-type DeptRow = { department: string; required: number; covered: number; gap: number; utilization: number };
-type RecoRow = { month: string; recommended: number; notRecommended: number; rate: number };
-type ReqRow = { id: string; position: string; submittedDate: string; status: string; daysInProcess: number };
+/* ---------------- Types ---------------- */
+type DeptKey = "CAS" | "CHS" | "CBPM" | "CCJ" | "CED" | "CCS";
 
-interface DeanMetrics {
-    avgRequestCycleTime: number; // days
-    renewalRate: number;         // %
-    totalFaculty: number;
-    unitCoverage: number;        // %
-    requestTrend: ReqTrend[];
-    facultyMix: MixRow[];
-    departmentUnitLoad: DeptRow[];
-    renewalRecommendations: RecoRow[];
-    recentRequests: ReqRow[];
+interface OpenRole {
+    id: string;
+    title: string;
+    department: DeptKey;
+    daysOpen: number;
+    postedDate: string;
 }
 
-/* ========== Palette ========== */
+interface TimeToFillRow {
+    department: DeptKey;
+    positionType: "Full-time" | "Part-time" | "Lecturer";
+    avgDays: number;
+}
+
+interface PipelineStage {
+    stage: "APPLICATIONS" | "SCREENING" | "INTERVIEWS" | "OFFERS" | "ACCEPTED";
+    count: number;
+    label: string;
+}
+
+/* ---------------- Demo data (same as HR) ---------------- */
 const COLORS = {
-    panel: "#E7F3F1",
-    primary: "#0d9488",
-    secondary: "#14b8a6",
-    approved: "#10b981",
-    rejected: "#ef4444",
-    required: "#94a3b8",
+    teal: "#0d9488",
+    cyan: "#06b6d4",
+    amber: "#f59e0b",
 };
 
-/* ========== Demo fallback so UI renders even if API isn't ready ========== */
-const FALLBACK: DeanMetrics = {
-    avgRequestCycleTime: 6.8,
-    renewalRate: 72,
-    totalFaculty: 275,
-    unitCoverage: 91,
-    requestTrend: [
-        { month: "May", submitted: 18, approved: 12, rejected: 2 },
-        { month: "Jun", submitted: 20, approved: 14, rejected: 3 },
-        { month: "Jul", submitted: 16, approved: 9, rejected: 4 },
-        { month: "Aug", submitted: 19, approved: 11, rejected: 3 },
-        { month: "Sep", submitted: 21, approved: 15, rejected: 4 },
-        { month: "Oct", submitted: 22, approved: 13, rejected: 5 },
-    ],
-    facultyMix: [
-        { type: "Full-Time", count: 141, percentage: 58 },
-        { type: "Part-Time", count: 102, percentage: 42 },
-    ],
-    departmentUnitLoad: [
-        { department: "Math", required: 120, covered: 110, gap: -10, utilization: 92 },
-        { department: "CS", required: 150, covered: 142, gap: -8, utilization: 95 },
-        { department: "Biology", required: 98, covered: 86, gap: -12, utilization: 88 },
-        { department: "Psych", required: 105, covered: 105, gap: 0, utilization: 100 },
-        { department: "Business", required: 160, covered: 147, gap: -13, utilization: 92 },
-    ],
-    renewalRecommendations: [
-        { month: "Jun", recommended: 12, notRecommended: 3, rate: 80 },
-        { month: "Jul", recommended: 9, notRecommended: 5, rate: 64 },
-        { month: "Aug", recommended: 11, notRecommended: 3, rate: 79 },
-        { month: "Sep", recommended: 15, notRecommended: 4, rate: 79 },
-        { month: "Oct", recommended: 13, notRecommended: 5, rate: 72 },
-    ],
-    recentRequests: [
-        { id: "r1", position: "Assistant Prof – CS", submittedDate: new Date(Date.now() - 7 * 864e5).toISOString(), status: "UNDER_REVIEW", daysInProcess: 7 },
-        { id: "r2", position: "Lecturer – Math", submittedDate: new Date(Date.now() - 3 * 864e5).toISOString(), status: "PENDING", daysInProcess: 3 },
-        { id: "r3", position: "Assoc Prof – Biology", submittedDate: new Date(Date.now() - 15 * 864e5).toISOString(), status: "APPROVED", daysInProcess: 15 },
-    ],
+const MOCK_OPEN_ROLES: OpenRole[] = [
+    { id: "v1", title: "Assistant Prof — Math", department: "CAS", daysOpen: 21, postedDate: "2025-09-30" },
+    { id: "v2", title: "Lecturer — Biology", department: "CAS", daysOpen: 13, postedDate: "2025-10-08" },
+    { id: "v3", title: "Instructor — Nursing", department: "CHS", daysOpen: 28, postedDate: "2025-09-23" },
+    { id: "v4", title: "Associate Prof — Business", department: "CBPM", daysOpen: 7, postedDate: "2025-10-14" },
+    { id: "v5", title: "Criminology Lecturer", department: "CCJ", daysOpen: 18, postedDate: "2025-10-03" },
+    { id: "v6", title: "Education Instructor", department: "CED", daysOpen: 9, postedDate: "2025-10-12" },
+    { id: "v7", title: "CompSci Lecturer", department: "CCS", daysOpen: 31, postedDate: "2025-09-20" },
+];
+
+const MOCK_TTF: TimeToFillRow[] = [
+    { department: "CAS", positionType: "Full-time", avgDays: 18 },
+    { department: "CAS", positionType: "Lecturer", avgDays: 12 },
+    { department: "CHS", positionType: "Full-time", avgDays: 19 },
+    { department: "CBPM", positionType: "Full-time", avgDays: 16 },
+    { department: "CCJ", positionType: "Lecturer", avgDays: 14 },
+    { department: "CED", positionType: "Part-time", avgDays: 10 },
+    { department: "CCS", positionType: "Lecturer", avgDays: 13 },
+];
+
+const MOCK_PIPELINE: PipelineStage[] = [
+    { stage: "APPLICATIONS", count: 420, label: "Applied" },
+    { stage: "SCREENING", count: 335, label: "Screening" },
+    { stage: "INTERVIEWS", count: 260, label: "Interview" },
+    { stage: "OFFERS", count: 140, label: "Offer" },
+    { stage: "ACCEPTED", count: 95, label: "Hired" },
+];
+
+const MOCK_PENDING = {
+    toReview: 23,
+    offersToApprove: 6,
+    contractsToRenew: 4,
 };
 
-export default function DeanDashboard() {
-    const [semester, setSemester] = useState("2025-1");
-    const [metrics, setMetrics] = useState<DeanMetrics>(FALLBACK);
-    const [loading, setLoading] = useState(true);
-    const [note, setNote] = useState<string | null>(null);
+const MOCK_FILLED = {
+    month: { value: 12, target: 18 },
+    quarter: { value: 33, target: 45 },
+    year: { value: 92, target: 120 },
+};
 
-    useEffect(() => {
-        let live = true;
-        (async () => {
-            try {
-                setLoading(true);
-                setNote(null);
-                const res = await fetch(`/api/dean/dashboard?semester=${semester}`, { cache: "no-store" });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const payload = (await res.json()) as DeanMetrics;
-                if (live) setMetrics(payload);
-            } catch {
-                if (live) {
-                    setMetrics(FALLBACK);
-                    setNote("Showing demo data (API not available).");
-                }
-            } finally {
-                if (live) setLoading(false);
-            }
-        })();
-        return () => { live = false; };
-    }, [semester]);
+const MOCK_MONTHLY_TREND = [
+    { month: "May", filled: 8 },
+    { month: "Jun", filled: 11 },
+    { month: "Jul", filled: 9 },
+    { month: "Aug", filled: 14 },
+    { month: "Sep", filled: 13 },
+    { month: "Oct", filled: 12 },
+];
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600" />
-            </div>
-        );
-    }
-
-    /* ===== KPI behavior -> your StatCard props ===== */
-    const cycleVariant: "primary" | "warning" | "danger" =
-        metrics.avgRequestCycleTime <= 7 ? "primary" : metrics.avgRequestCycleTime <= 10 ? "warning" : "danger";
-
-    const renewVariant: "success" | "warning" | "danger" =
-        metrics.renewalRate >= 75 ? "success" : metrics.renewalRate >= 65 ? "warning" : "danger";
-
-    const unitVariant: "success" | "warning" =
-        metrics.unitCoverage >= 95 ? "success" : "warning";
+/* ---------------- Simple Components (view-only variants) ---------------- */
+function BigNumberView({
+    label,
+    value,
+    icon: Icon,
+    color = "teal",
+}: {
+    label: string;
+    value: number | string;
+    icon: React.ComponentType<{ size?: number }>;
+    color?: "teal" | "cyan" | "amber" | "slate";
+}) {
+    const colors = {
+        teal: "bg-teal-600 text-white",
+        cyan: "bg-cyan-600 text-white",
+        amber: "bg-amber-500 text-white",
+        slate: "bg-slate-600 text-white",
+    };
 
     return (
-        <div className="space-y-6 p-6">
-            {/* Header + filter */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <PageHeader
-                    title="Dean Dashboard"
-                    subtitle={note ?? "Personnel stability, departmental needs, and resource utilization"}
-                />
-                <select
-                    value={semester}
-                    onChange={(e) => setSemester(e.target.value)}
-                    className="px-3 py-2 rounded-lg bg-white/90 backdrop-blur border border-teal-200 text-sm focus:ring-2 focus:ring-teal-500"
-                >
-                    <option value="2025-1">Semester 1, 2025</option>
-                    <option value="2024-2">Semester 2, 2024</option>
-                    <option value="2024-1">Semester 1, 2024</option>
-                </select>
+        <div className={`${colors[color]} rounded-xl p-5 text-left w-full select-none`}>
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-sm opacity-90">{label}</span>
+                <Icon size={20} />
             </div>
+            <div className="text-4xl font-bold">{value}</div>
+        </div>
+    );
+}
 
-            {/* KPI Row — uses subtitle/variant/tint/icon */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard
-                    title="Avg Request Cycle (days)"
-                    value={metrics.avgRequestCycleTime.toFixed(1)}
-                    subtitle={cycleVariant === "danger" ? "Slow — unblock approvals" : cycleVariant === "warning" ? "Slightly elevated" : "On target"}
-                    variant={cycleVariant}
-                    tint="teal"
-                    icon={<span>⏱️</span>}
-                />
-                <StatCard
-                    title="Renewal Rate"
-                    value={`${Math.round(metrics.renewalRate)}%`}
-                    subtitle={renewVariant === "danger" ? "Low — review criteria" : renewVariant === "warning" ? "Monitor trend" : "Healthy"}
-                    variant={renewVariant}
-                    tint="teal"
-                    icon={<span>🔁</span>}
-                    trend={{ value: Math.max(-10, Math.min(10, (metrics.renewalRate - 70) / 2)), direction: metrics.renewalRate >= 70 ? "up" : "down" }}
-                />
-                <StatCard
-                    title="Total Faculty"
-                    value={metrics.totalFaculty}
-                    subtitle="Active teaching staff"
-                    variant="info"
-                    tint="teal"
-                    icon={<span>🎓</span>}
-                />
-                <StatCard
-                    title="Unit Coverage"
-                    value={`${Math.round(metrics.unitCoverage)}%`}
-                    subtitle={unitVariant === "success" ? "Covered" : "Slight shortfall"}
-                    variant={unitVariant}
-                    tint="teal"
-                    icon={<span>📘</span>}
+function SimpleProgress({
+    label,
+    current,
+    target,
+}: {
+    label: string;
+    current: number;
+    target: number;
+}) {
+    const percent = Math.round((current / target) * 100);
+    const isGood = percent >= 75;
+
+    return (
+        <div className="bg-white rounded-xl p-4 border">
+            <div className="flex justify-between mb-2">
+                <span className="font-medium text-slate-700">{label}</span>
+                <span className="text-slate-600">
+                    {current} / {target}
+                </span>
+            </div>
+            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                    className={`h-full ${isGood ? "bg-teal-500" : "bg-amber-500"}`}
+                    style={{ width: `${Math.min(percent, 100)}%` }}
                 />
             </div>
+            <div className="text-right text-xs text-slate-500 mt-1">{percent}%</div>
+        </div>
+    );
+}
 
-            {/* Charts Row 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Request Status Trend */}
-                <section className="rounded-2xl border p-4 shadow-sm" style={{ background: COLORS.panel }}>
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Hiring Request Status Trend</h3>
-                    <div className="h-72">
-                        <ResponsiveContainer>
-                            <AreaChart data={metrics.requestTrend}>
-                                <defs>
-                                    <linearGradient id="gSubmitted" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.85} />
-                                        <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0.10} />
-                                    </linearGradient>
-                                    <linearGradient id="gApproved" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={COLORS.approved} stopOpacity={0.85} />
-                                        <stop offset="95%" stopColor={COLORS.approved} stopOpacity={0.10} />
-                                    </linearGradient>
-                                    <linearGradient id="gRejected" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={COLORS.rejected} stopOpacity={0.85} />
-                                        <stop offset="95%" stopColor={COLORS.rejected} stopOpacity={0.10} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-                                <XAxis dataKey="month" stroke="#64748b" />
-                                <YAxis stroke="#64748b" />
-                                <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.96)", border: "1px solid #14b8a6", borderRadius: 8 }} />
-                                <Legend />
-                                <Area type="monotone" dataKey="submitted" stroke={COLORS.primary} fill="url(#gSubmitted)" />
-                                <Area type="monotone" dataKey="approved" stroke={COLORS.approved} fill="url(#gApproved)" />
-                                <Area type="monotone" dataKey="rejected" stroke={COLORS.rejected} fill="url(#gRejected)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </section>
+function ChartCard({
+    title,
+    children,
+    hint,
+}: {
+    title: string;
+    children: React.ReactNode;
+    hint?: string;
+}) {
+    return (
+        <div className="bg-white rounded-xl border p-4">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-slate-800">{title}</h3>
+                <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                    <Eye size={14} />
+                    View only
+                </span>
+            </div>
+            {children}
+            {hint && <p className="text-xs text-slate-500 mt-2">{hint}</p>}
+        </div>
+    );
+}
 
-                {/* Faculty Mix */}
-                <section className="rounded-2xl border p-4 shadow-sm" style={{ background: COLORS.panel }}>
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Faculty Roster Mix (FT vs PT)</h3>
-                    <div className="h-72">
+/* ---------------- Page ---------------- */
+export default function DeanDashboard() {
+    const [openRoles] = useState<OpenRole[]>(MOCK_OPEN_ROLES);
+    const [ttfRows] = useState<TimeToFillRow[]>(MOCK_TTF);
+
+    // Calculations (same as HR)
+    const avgTTF = useMemo(() => {
+        const total = ttfRows.reduce((sum, r) => sum + r.avgDays, 0);
+        return Math.round(total / ttfRows.length);
+    }, [ttfRows]);
+
+    const openByDept = useMemo(() => {
+        const result: { dept: DeptKey; count: number }[] = [];
+        const depts: DeptKey[] = ["CAS", "CHS", "CBPM", "CCJ", "CED", "CCS"];
+        depts.forEach((d) => {
+            const count = openRoles.filter((r) => r.department === d).length;
+            result.push({ dept: d, count });
+        });
+        return result;
+    }, [openRoles]);
+
+    const ttfByDept = useMemo(() => {
+        const result: { dept: DeptKey; avgDays: number }[] = [];
+        const depts: DeptKey[] = ["CAS", "CHS", "CBPM", "CCJ", "CED", "CCS"];
+        depts.forEach((d) => {
+            const rows = ttfRows.filter((r) => r.department === d);
+            if (rows.length > 0) {
+                const avg = rows.reduce((sum, r) => sum + r.avgDays, 0) / rows.length;
+                result.push({ dept: d, avgDays: Math.round(avg) });
+            } else {
+                result.push({ dept: d, avgDays: 0 });
+            }
+        });
+        return result;
+    }, [ttfRows]);
+
+    return (
+        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-bold text-slate-900">Dean Dashboard</h1>
+                <p className="text-slate-600 mt-1">
+                    Read-only view of hiring status and progress
+                </p>
+            </div>
+
+            {/* Top Numbers (view-only) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <BigNumberView label="Open Positions" value={openRoles.length} icon={Users} color="teal" />
+                <BigNumberView label="Awaiting Review (HR)" value={MOCK_PENDING.toReview} icon={FileText} color="cyan" />
+                <BigNumberView label="Average Days to Fill" value={`${avgTTF}d`} icon={Clock} color="slate" />
+                <BigNumberView label="Contracts to Renew" value={MOCK_PENDING.contractsToRenew} icon={Calendar} color="amber" />
+            </div>
+
+            {/* Progress (read-only) */}
+            <div className="bg-teal-50 rounded-xl border border-teal-100 p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-slate-800">Hiring Progress</h2>
+                    <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                        <Eye size={14} /> View only
+                    </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <SimpleProgress label="This Month" current={MOCK_FILLED.month.value} target={MOCK_FILLED.month.target} />
+                    <SimpleProgress label="This Quarter" current={MOCK_FILLED.quarter.value} target={MOCK_FILLED.quarter.target} />
+                    <SimpleProgress label="This Year" current={MOCK_FILLED.year.value} target={MOCK_FILLED.year.target} />
+                </div>
+            </div>
+
+            {/* Charts (no click handlers) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Hiring Funnel */}
+                <ChartCard title="Hiring Funnel (Applicants’ Progress)" hint="Interactively filtered by HR; shown here for visibility only">
+                    <div className="h-80">
                         <ResponsiveContainer>
-                            <BarChart data={metrics.facultyMix} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                            <BarChart data={MOCK_PIPELINE} layout="vertical" margin={{ left: 80 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                 <XAxis type="number" stroke="#64748b" />
-                                <YAxis type="category" dataKey="type" stroke="#64748b" />
-                                <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.96)", border: "1px solid #14b8a6", borderRadius: 8 }} />
+                                <YAxis type="category" dataKey="label" stroke="#64748b" width={90} />
+                                <Tooltip />
                                 <Legend />
-                                <Bar dataKey="count" name="Faculty Count" fill={COLORS.primary} />
+                                <Bar dataKey="count" fill={COLORS.teal} radius={[0, 6, 6, 0]}>
+                                    {MOCK_PIPELINE.map((_, i) => (
+                                        <Cell
+                                            key={i}
+                                            fill={i === 0 ? COLORS.teal : i === 4 ? "#059669" : COLORS.cyan}
+                                        />
+                                    ))}
+                                </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                </section>
-            </div>
+                </ChartCard>
 
-            {/* Charts Row 2 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Unit Load */}
-                <section className="rounded-2xl border p-4 shadow-sm" style={{ background: COLORS.panel }}>
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Unit Load Analysis by Department</h3>
-                    <div className="h-72">
+                {/* Monthly Trend */}
+                <ChartCard title="Positions Filled Each Month">
+                    <div className="h-80">
                         <ResponsiveContainer>
-                            <BarChart data={metrics.departmentUnitLoad}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-                                <XAxis dataKey="department" stroke="#64748b" />
-                                <YAxis stroke="#64748b" />
-                                <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.96)", border: "1px solid #14b8a6", borderRadius: 8 }} />
-                                <Legend />
-                                <Bar dataKey="required" name="Required Units" fill={COLORS.required} />
-                                <Bar dataKey="covered" name="Covered Units" fill={COLORS.primary} />
-                                <Bar dataKey="gap" name="Gap" fill={COLORS.rejected} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </section>
-
-                {/* Renewal Recommendation Trend */}
-                <section className="rounded-2xl border p-4 shadow-sm" style={{ background: COLORS.panel }}>
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Renewal Recommendation Rate</h3>
-                    <div className="h-72">
-                        <ResponsiveContainer>
-                            <LineChart data={metrics.renewalRecommendations}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                            <LineChart data={MOCK_MONTHLY_TREND}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                 <XAxis dataKey="month" stroke="#64748b" />
                                 <YAxis stroke="#64748b" />
-                                <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.96)", border: "1px solid #14b8a6", borderRadius: 8 }} />
+                                <Tooltip />
                                 <Legend />
-                                <Line type="monotone" dataKey="recommended" stroke={COLORS.approved} strokeWidth={2} dot={{ r: 4, fill: COLORS.approved }} />
-                                <Line type="monotone" dataKey="notRecommended" stroke={COLORS.rejected} strokeWidth={2} dot={{ r: 4, fill: COLORS.rejected }} />
-                                <Line type="monotone" dataKey="rate" name="Rate %" stroke={COLORS.primary} strokeWidth={3} dot={{ r: 5, fill: COLORS.primary }} />
+                                <Line
+                                    type="monotone"
+                                    dataKey="filled"
+                                    stroke={COLORS.teal}
+                                    strokeWidth={3}
+                                    dot={{ r: 6, fill: COLORS.teal }}
+                                />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
-                </section>
+                </ChartCard>
+
+                {/* Open by Department */}
+                <ChartCard title="Open Positions by Department">
+                    <div className="h-80">
+                        <ResponsiveContainer>
+                            <BarChart data={openByDept}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="dept" stroke="#64748b" />
+                                <YAxis stroke="#64748b" />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="count" fill={COLORS.teal} radius={[6, 6, 0, 0]}>
+                                    {openByDept.map((_, i) => (
+                                        <Cell key={i} fill={COLORS.teal} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </ChartCard>
+
+                {/* Time to Fill */}
+                <ChartCard title="Average Days to Fill by Department">
+                    <div className="h-80">
+                        <ResponsiveContainer>
+                            <BarChart data={ttfByDept}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="dept" stroke="#64748b" />
+                                <YAxis stroke="#64748b" />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="avgDays" fill={COLORS.cyan} radius={[6, 6, 0, 0]}>
+                                    {ttfByDept.map((_, i) => (
+                                        <Cell key={i} fill={COLORS.cyan} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">Lower is better. Target: 15 days or less.</p>
+                </ChartCard>
             </div>
 
-            {/* Radar — Staffing health */}
-            <section className="rounded-2xl border p-4 shadow-sm" style={{ background: COLORS.panel }}>
-                <h3 className="text-base font-semibold text-slate-800 mb-2">Department Staffing Health Overview</h3>
-                <div className="h-96">
-                    <ResponsiveContainer>
-                        <RadarChart data={metrics.departmentUnitLoad}>
-                            <PolarGrid stroke="#d1d5db" />
-                            <PolarAngleAxis dataKey="department" stroke="#64748b" />
-                            <PolarRadiusAxis stroke="#64748b" />
-                            <Radar name="Utilization %" dataKey="utilization" stroke={COLORS.primary} fill={COLORS.primary} fillOpacity={0.6} />
-                            <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.96)", border: "1px solid #14b8a6", borderRadius: 8 }} />
-                            <Legend />
-                        </RadarChart>
-                    </ResponsiveContainer>
-                </div>
-            </section>
-
-            {/* Recent Requests Table */}
-            <section className="rounded-2xl border p-4 shadow-sm" style={{ background: COLORS.panel }}>
-                <h3 className="text-base font-semibold text-slate-800 mb-3">Recent Hiring Requests</h3>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-teal-50">
-                            <tr>
-                                <th className="px-4 py-2 text-left font-medium text-gray-700">Position</th>
-                                <th className="px-4 py-2 text-left font-medium text-gray-700">Submitted Date</th>
-                                <th className="px-4 py-2 text-left font-medium text-gray-700">Days in Process</th>
-                                <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
-                                <th className="px-4 py-2 text-left font-medium text-gray-700">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="tile/70 divide-y divide-gray-200">
-                            {metrics.recentRequests.map((r) => (
-                                <tr key={r.id} className="hover:bg-teal-50 transition-colors">
-                                    <td className="px-4 py-2 font-medium text-gray-900">{r.position}</td>
-                                    <td className="px-4 py-2 text-gray-700">{new Date(r.submittedDate).toLocaleDateString()}</td>
-                                    <td className="px-4 py-2">
-                                        <span className={[
-                                            "px-2 py-0.5 rounded-full font-semibold",
-                                            r.daysInProcess <= 7 ? "bg-green-100 text-green-700"
-                                                : r.daysInProcess <= 14 ? "bg-yellow-100 text-yellow-700"
-                                                    : "bg-red-100 text-red-700"
-                                        ].join(" ")}>
-                                            {r.daysInProcess} days
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <span className={[
-                                            "px-2 py-0.5 rounded-full text-xs font-medium",
-                                            r.status === "APPROVED" ? "bg-green-100 text-green-800"
-                                                : r.status === "REJECTED" ? "bg-red-100 text-red-800"
-                                                    : r.status === "UNDER_REVIEW" ? "bg-blue-100 text-blue-800"
-                                                        : "bg-yellow-100 text-yellow-800"
-                                        ].join(" ")}>
-                                            {r.status.replace(/_/g, " ")}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <button className="text-teal-700 hover:text-teal-900 font-medium">
-                                            View Details →
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            {/* No Quick Actions for Dean */}
+            <div className="bg-white rounded-xl border p-4 text-sm text-slate-600">
+                This page is read-only. For actions (reviewing applications, posting vacancies, or renewals),
+                please coordinate with HR.
+            </div>
         </div>
     );
 }
