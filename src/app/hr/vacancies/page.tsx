@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
 import VacancyModal from "@/components/hr/VacancyModal";
 import QRCodeModal from "@/components/hr/QRCodeModal";
-import ApplicationsModal from "@/components/hr/ApplicationsModal";
 
 interface Vacancy {
   id: string;
@@ -19,12 +19,13 @@ interface Vacancy {
 }
 
 export default function Page() {
+  const router = useRouter();
+
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVacancy, setEditingVacancy] = useState<Vacancy | null>(null);
   const [qrVacancy, setQrVacancy] = useState<Vacancy | null>(null);
-  const [applicationsVacancy, setApplicationsVacancy] = useState<Vacancy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
@@ -63,7 +64,6 @@ export default function Page() {
       const text = await res.text();
       let j: any = {};
       try { j = text ? JSON.parse(text) : {}; } catch { }
-
       if (!res.ok) throw new Error(j?.error || text || `HTTP ${res.status}`);
       setVacancies(vacancies.filter(v => v.id !== id));
     } catch (err: any) {
@@ -87,7 +87,6 @@ export default function Page() {
   };
 
   const showQRCode = (vacancy: Vacancy) => setQrVacancy(vacancy);
-  const showApplications = (vacancy: Vacancy) => setApplicationsVacancy(vacancy);
 
   const formatDate = (s: string) =>
     new Date(s).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -106,17 +105,13 @@ export default function Page() {
       process.env.NEXT_PUBLIC_BASE_URL ||
       (typeof window !== "undefined" ? window.location.origin : "");
 
-    // Changed to use /apply?vacancy= format
+    // Public apply URL (15-day window rule is shown in UI, your API should also enforce)
     const url = `${base}/apply?vacancy=${vacancyId}`;
 
     try {
       await navigator.clipboard.writeText(url);
       setCopySuccess(vacancyId);
-
-      // Reset success message after 2 seconds
-      setTimeout(() => {
-        setCopySuccess(null);
-      }, 2000);
+      setTimeout(() => setCopySuccess(null), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
       alert("Failed to copy link");
@@ -198,7 +193,11 @@ export default function Page() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <button onClick={() => showApplications(v)} className="text-blue-600 hover:text-blue-800 font-medium text-sm">
+                        {/* Navigate to Applicants filtered by this vacancy */}
+                        <button
+                          onClick={() => router.push(`/hr/applicants?vacancyId=${v.id}`)}
+                          className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                        >
                           {v._count?.applications || 0} Applications
                         </button>
                       </td>
@@ -209,6 +208,12 @@ export default function Page() {
                             className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
                           >
                             QR Code
+                          </button>
+                          <button
+                            onClick={() => copyPublicLink(v.id)}
+                            className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                          >
+                            {copySuccess === v.id ? 'Copied!' : 'Copy Public Link'}
                           </button>
                           <button
                             onClick={() => handleEdit(v)}
@@ -237,7 +242,6 @@ export default function Page() {
         <VacancyModal vacancy={editingVacancy} onClose={handleModalClose} onSuccess={handleModalSuccess} />
       )}
       {qrVacancy && <QRCodeModal vacancy={qrVacancy} onClose={() => setQrVacancy(null)} />}
-      {applicationsVacancy && <ApplicationsModal vacancy={applicationsVacancy} onClose={() => setApplicationsVacancy(null)} />}
     </div>
   );
 }

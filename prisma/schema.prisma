@@ -1,121 +1,129 @@
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-provider = "postgresql"
-url = env("DATABASE_URL")
-}
-
-enum UserRole {
-ADMIN
-USER
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-id String @id @default(cuid())
-name String
-email String @unique
-password String
-role String
-createdAt DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String
+  createdAt DateTime @default(now())
 }
 
 model Vacancy {
-id String @id @default(cuid())
-title String
-college String
-status String // e.g. "OPEN" | "CLOSED" | "DRAFT"
-requirements String
-description String
-postedDate DateTime @default(now())
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
-applications Application[]
+  id           String        @id @default(cuid())
+  title        String
+  college      String
+  status       String
+  requirements String
+  description  String
+  postedDate   DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
 
-@@index([status])
-@@index([college])
-@@map("vacancies")
+  @@index([status])
+  @@index([college])
+  @@map("vacancies")
+}
+
+model VacancyRequest {
+  id                     String   @id @default(cuid())
+  jobTitle               String
+  college                String
+  numberOfSlots          Int
+  targetStartDate        DateTime
+  minimumQualifications  String   @db.Text
+  justification          String   @db.Text
+  
+  status                 String   @default("Pending")
+  submittedBy            String?
+  submittedAt            DateTime @default(now())
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  reviewNotes            String?  @db.Text
+  
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([status])
+  @@index([college])
+  @@index([submittedAt])
+  @@map("vacancy_requests")
 }
 
 model Application {
-id String @id @default(cuid())
+  id        String  @id @default(cuid())
+  vacancyId String
+  vacancy   Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
 
-// Relation (required)
-vacancyId String
-vacancy Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  fullName    String
+  email       String
+  phone       String
+  coverLetter String
+  resumeUrl   String
 
-// Core required fields from your original schema
-fullName String
-email String
-phone String // your API can map contactNo -> phone
-coverLetter String
-resumeUrl String
+  status      String   @default("PENDING")
+  appliedDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-// Original status/dates
-status String @default("Pending") // if you prefer "PENDING", change here
-appliedDate DateTime @default(now())
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  firstName        String?
+  middleName       String?
+  lastName         String?
+  contactNo        String?
+  dob              DateTime?
+  gender           String?
+  civilStatus      String?
+  presentAddress   String?
+  permanentAddress String?
+  nationality      String?
+  idType           String?
+  idNumber         String?
 
-// -------- Optional extended fields you added --------
-// Names & contact (optional duplicates kept for compatibility)
-firstName String?
-middleName String?
-lastName String?
-contactNo String?
+  desiredPosition String?
+  department      String?
+  employmentType  String?
 
-// Personal details
-dob DateTime?
-gender String?
-civilStatus String?
-presentAddress String?
-permanentAddress String?
-nationality String?
-idType String?
-idNumber String?
+  highestDegree String?
+  trainingHours Int?
+  licenseName   String?
+  licenseNo     String?
+  licenseExpiry DateTime?
 
-// Position
-desiredPosition String?
-department String?
-employmentType String?
+  experiences Json? @default("[]")
+  references  Json? @default("[]")
 
-// Education / credentials
-highestDegree String?
-trainingHours String? // keep as String? to match your current code
-licenseName String?
-licenseNo String?
-licenseExpiry DateTime?
+  signature String?
+  signedAt  DateTime?
+  qrCode    String?
+  message   String?
+  stage     String?
 
-// Arrays / JSON (defaults to empty array)
-experiences Json? @default("[]")
-references Json? @default("[]")
-
-// Consent / misc
-signature String?
-signedAt DateTime?
-qrCode String?
-message String?
-stage String?
-
-@@index([vacancyId])
-@@index([email])
-@@index([status])
-@@map("applications")
+  @@index([vacancyId])
+  @@index([email])
+  @@index([status])
+  @@map("applications")
 }
 
 model Renewal {
-id String @id @default(cuid())
-facultyName String
-college String
-contractNo String
-position String
-endDate DateTime
-deanRecommendation String? // "RENEW" | "NOT_RENEW" | null
-deanRemarks String?
-status String @default("Pending")
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  facultyName        String
+  college            String
+  contractNo         String
+  position           String
+  endDate            DateTime
+  deanRecommendation String?
+  deanRemarks        String?
+  status             String   @default("Pending")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-@@map("renewals")
+  @@map("renewals")
 }
