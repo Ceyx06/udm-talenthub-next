@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
-import { hrListRenewals } from "@/services/renewals";
 import type { RenewalRow } from "@/types/renewals";
 import { readMock, filterMock } from "@/lib/mockRenewals";
 
@@ -11,37 +10,39 @@ export default function HRRenewalsPage() {
   const [rows, setRows] = useState<RenewalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [useMock, setUseMock] = useState(false);
 
-  async function load(opts?: { search?: string }) {
+  function load(opts?: { search?: string }) {
     setLoading(true);
-    const q = opts?.search ?? "";
-    try {
-      if (useMock) {
-        setRows(filterMock(readMock(), q));
-      } else {
-        const res = await hrListRenewals({ take: 50, search: q });
-        // if API empty, fall back to mock (nice for demos)
-        setRows(res.items.length ? res.items : filterMock(readMock(), q));
-      }
-    } catch {
-      setRows(filterMock(readMock(), q));
-    } finally {
-      setLoading(false);
-    }
+    const q = (opts?.search ?? "").trim();
+    const data = filterMock(readMock(), q);
+    setRows(data);
+    setLoading(false);
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [useMock]);
+  useEffect(() => {
+    load();
+  }, []);
 
-  const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "—");
+  const fmtDate = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString() : "—";
+
   const deanBadge = (v: RenewalRow["deanRecommendation"]) =>
-    v === "RENEW" ? <Badge tone="green">Renew</Badge>
-    : v === "NOT_RENEW" ? <Badge tone="red">Not Renew</Badge>
-    : <Badge tone="yellow">Pending</Badge>;
+    v === "RENEW" ? (
+      <Badge tone="green">Renew</Badge>
+    ) : v === "NOT_RENEW" ? (
+      <Badge tone="red">Not Renew</Badge>
+    ) : (
+      <Badge tone="yellow">Pending</Badge>
+    );
+
   const statusBadge = (s: RenewalRow["status"]) =>
-    s === "APPROVED" ? <Badge tone="green">Approved</Badge>
-    : s === "REJECTED" ? <Badge tone="red">Rejected</Badge>
-    : <Badge tone="yellow">Pending Dean</Badge>;
+    s === "APPROVED" ? (
+      <Badge tone="green">Approved</Badge>
+    ) : s === "REJECTED" ? (
+      <Badge tone="red">Rejected</Badge>
+    ) : (
+      <Badge tone="yellow">Pending Dean</Badge>
+    );
 
   return (
     <div className="space-y-4">
@@ -54,14 +55,11 @@ export default function HRRenewalsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button onClick={() => load({ search })} className="rounded-md border px-3 py-2">Search</button>
-          <button onClick={() => { setSearch(""); load({ search: "" }); }} className="rounded-md border px-3 py-2">Reset</button>
           <button
-            onClick={() => setUseMock((v) => !v)}
-            className={`rounded-md px-3 py-2 border ${useMock ? "bg-black text-white" : ""}`}
-            title="Toggle mock data"
+            onClick={() => load({ search })}
+            className="rounded-md border px-3 py-2 hover:bg-gray-100 transition"
           >
-            {useMock ? "Using Mock" : "Use Mock"}
+            Search
           </button>
         </div>
       </div>
@@ -81,26 +79,43 @@ export default function HRRenewalsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-3" colSpan={7}>Loading...</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td className="p-3" colSpan={7}>No records</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="p-3">{r.facultyName}</td>
-                <td>{r.college ? <Badge tone="gray">{r.college}</Badge> : "—"}</td>
-                <td>{r.contractNo || "—"}</td>
-                <td>{r.position}</td>
-                <td>{fmtDate(r.contractEndDate)}</td>
-                <td>{deanBadge(r.deanRecommendation)}</td>
-                <td>{statusBadge(r.status)}</td>
+              <tr>
+                <td className="p-3" colSpan={7}>
+                  Loading...
+                </td>
               </tr>
-            ))}
+            ) : rows.length === 0 ? (
+              <tr>
+                <td className="p-3" colSpan={7}>
+                  No records
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="p-3">{r.facultyName}</td>
+                  <td>
+                    {r.college ? <Badge tone="gray">{r.college}</Badge> : "—"}
+                  </td>
+                  <td>{r.contractNo || "—"}</td>
+                  <td>{r.position}</td>
+                  <td>{fmtDate(r.contractEndDate)}</td>
+                  <td>{deanBadge(r.deanRecommendation)}</td>
+                  <td>{statusBadge(r.status)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="flex justify-end">
-        <button onClick={() => load({ search })} className="rounded-md border px-3 py-2">Refresh</button>
+        <button
+          onClick={() => load({ search })}
+          className="rounded-md border px-3 py-2 hover:bg-gray-100 transition"
+        >
+          Refresh
+        </button>
       </div>
     </div>
   );

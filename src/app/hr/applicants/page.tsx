@@ -3,8 +3,10 @@
 import { useState, useMemo } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
+// import axios from "axios"; // uncomment when API routes are ready
 
 type Stage = "Pending" | "Conducted" | "Evaluating";
+
 type Row = {
   id: string;
   name: string;
@@ -15,9 +17,9 @@ type Row = {
   filesComplete: boolean; // true=Complete, false=Partial
   stage: Stage;
   attachments: { name: string; type: "pdf" | "image"; url?: string }[];
+  endorsedAt?: string | null;
 };
 
-// Toggle permission for the Files badge
 const canManageFiles = true;
 
 const initialRows: Row[] = [
@@ -35,6 +37,7 @@ const initialRows: Row[] = [
       { name: "TOR_Juan.jpg", type: "image" },
       { name: "PRC_License.pdf", type: "pdf" },
     ],
+    endorsedAt: null,
   },
   {
     id: "APP002",
@@ -44,11 +47,12 @@ const initialRows: Row[] = [
     college: "CHS",
     phone: "+63 923 456 7890",
     filesComplete: false,
-    stage: "Conducted",
+    stage: "Pending",
     attachments: [
       { name: "CV_MariaSantos.pdf", type: "pdf" },
       { name: "TOR_Maria.jpg", type: "image" },
     ],
+    endorsedAt: null,
   },
   {
     id: "APP003",
@@ -57,33 +61,22 @@ const initialRows: Row[] = [
     job: "Associate Professor – Business Management",
     college: "CBPM",
     phone: "+63 934 567 8901",
-    filesComplete: true,
-    stage: "Evaluating",
+    filesComplete: false,
+    stage: "Pending",
     attachments: [
       { name: "CV_PedroReyes.pdf", type: "pdf" },
       { name: "TOR_Pedro.png", type: "image" },
       { name: "COC_Pedro.pdf", type: "pdf" },
     ],
+    endorsedAt: null,
   },
 ];
 
 export default function Page() {
   const [rows, setRows] = useState<Row[]>(initialRows);
-
-  // View modal state
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<Row | null>(null);
-
   const data = useMemo(() => rows, [rows]);
-
-  function toggleFiles(r: Row) {
-    if (!canManageFiles) return;
-    setRows((prev) =>
-      prev.map((row) =>
-        row.id === r.id ? { ...row, filesComplete: !row.filesComplete } : row
-      )
-    );
-  }
 
   function openViewer(r: Row) {
     setActive(r);
@@ -98,6 +91,58 @@ export default function Page() {
   function handleDelete(r: Row) {
     if (!confirm(`Delete applicant ${r.id} — ${r.name}?`)) return;
     setRows((prev) => prev.filter((row) => row.id !== r.id));
+  }
+
+  // Toggle ONLY from the modal
+  async function toggleFilesFromModal() {
+    if (!active || !canManageFiles) return;
+
+    const targetId = active.id;
+    const nextValue = !active.filesComplete;
+
+    // optimistic update: modal + table row
+    setActive({ ...active, filesComplete: nextValue });
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === targetId ? { ...row, filesComplete: nextValue } : row
+      )
+    );
+
+    // Optional: persist to server
+    // try {
+    //   await axios.patch(`/api/hr/applicants/${targetId}/files-status`, {
+    //     filesComplete: nextValue,
+    //   });
+    // } catch (e) {
+    //   // rollback on failure
+    //   setActive({ ...active, filesComplete: !nextValue });
+    //   setRows((prev) =>
+    //     prev.map((row) =>
+    //       row.id === targetId ? { ...row, filesComplete: !nextValue } : row
+    //     )
+    //   );
+    //   alert("Failed to update files status on server.");
+    // }
+  }
+
+  async function endorseActive() {
+    if (!active) return;
+    const nowISO = new Date().toISOString();
+
+    setRows((prev) =>
+      prev.map((row) => (row.id === active.id ? { ...row, endorsedAt: nowISO } : row))
+    );
+    setActive({ ...active, endorsedAt: nowISO });
+
+    // try {
+    //   await axios.post(`/api/hr/applicants/${active.id}/endorse`);
+    // } catch {
+    //   setRows((prev) =>
+    //     prev.map((row) => (row.id === active.id ? { ...row, endorsedAt: null } : row))
+    //   );
+    //   setActive({ ...active, endorsedAt: null });
+    //   alert("Failed to endorse on server.");
+    // }
   }
 
   return (
@@ -117,6 +162,7 @@ export default function Page() {
                 <th className="p-3 font-medium">Phone</th>
                 <th className="p-3 font-medium">Files</th>
                 <th className="p-3 font-medium">Stage</th>
+                <th className="p-3 font-medium">Endorsed</th>
                 <th className="p-3 text-right font-medium w-40">Actions</th>
               </tr>
             </thead>
@@ -132,31 +178,35 @@ export default function Page() {
                   </td>
                   <td className="p-3">{r.phone}</td>
 
-                  {/* Clickable Files status */}
+                  {/* Files column: READ-ONLY. Reflects changes made in modal */}
                   <td className="p-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleFiles(r)}
-                      disabled={!canManageFiles}
+                    <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${
                         r.filesComplete
                           ? "bg-green-100 text-green-800 ring-green-300"
                           : "bg-red-100 text-red-800 ring-red-300"
-                      } ${!canManageFiles ? "cursor-not-allowed opacity-60" : "hover:opacity-90"}`}
-                      aria-label={`Files status: ${r.filesComplete ? "Complete" : "Partial"} (click to toggle)`}
+                      }`}
+                      title="Editable in View"
                     >
                       {r.filesComplete ? "Complete" : "Partial"}
-                    </button>
+                    </span>
                   </td>
 
-                  {/* Stage */}
+                  {/* Stage: keep all Pending for now */}
                   <td className="p-3">
-                    {r.stage === "Pending" && <Badge tone="gray">Pending</Badge>}
-                    {r.stage === "Conducted" && <Badge tone="blue">Conducted</Badge>}
-                    {r.stage === "Evaluating" && <Badge tone="purple">Evaluating</Badge>}
+                    <Badge tone="gray">Pending</Badge>
                   </td>
 
-                  {/* Actions: text "Delete" + primary "View" */}
+                  <td className="p-3">
+                    {r.endorsedAt ? (
+                      <span className="text-xs text-green-700">
+                        Endorsed<br />{new Date(r.endorsedAt).toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-500">—</span>
+                    )}
+                  </td>
+
                   <td className="p-3">
                     <div className="flex justify-end items-center gap-3">
                       <button
@@ -180,7 +230,7 @@ export default function Page() {
 
               {data.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-6 text-center text-gray-500">
+                  <td colSpan={10} className="p-6 text-center text-gray-500">
                     No applicants found.
                   </td>
                 </tr>
@@ -190,7 +240,7 @@ export default function Page() {
         </div>
       </div>
 
-      {/* VIEW MODAL (no endorse behavior) */}
+      {/* VIEW MODAL (only place where Files can be toggled) */}
       {open && active && (
         <div
           role="dialog"
@@ -214,17 +264,21 @@ export default function Page() {
               </button>
             </div>
 
+            {/* Single toggle pill INSIDE the modal */}
             <div className="mt-4 flex items-center gap-2">
               <span className="text-xs text-gray-500">Files Status:</span>
-              <span
+              <button
+                onClick={toggleFilesFromModal}
                 className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${
                   active.filesComplete
                     ? "bg-green-100 text-green-800 ring-green-300"
                     : "bg-red-100 text-red-800 ring-red-300"
-                }`}
+                } ${!canManageFiles ? "cursor-not-allowed opacity-60" : "hover:opacity-90"}`}
+                disabled={!canManageFiles}
+                title="Click to toggle files status"
               >
                 {active.filesComplete ? "Complete" : "Partial"}
-              </span>
+              </button>
             </div>
 
             <div className="mt-4 rounded-lg border">
@@ -271,17 +325,23 @@ export default function Page() {
               </table>
             </div>
 
-            {/* Endorse button shown but disabled, no handler */}
             <div className="mt-5 flex items-center justify-between">
               <p className="text-xs text-gray-500">
-                Viewing only. Endorse action will be enabled later.
+                {active.endorsedAt
+                  ? "Already endorsed."
+                  : "Endorse to forward this applicant to the Dean portal."}
               </p>
               <button
-                className="rounded-md bg-gray-300 text-gray-600 px-4 py-2 cursor-not-allowed"
-                title="Coming soon"
-                disabled
+                onClick={endorseActive}
+                className={`rounded-md px-4 py-2 ${
+                  active.endorsedAt
+                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                    : "bg-emerald-600 text-white hover:bg-emerald-700"
+                }`}
+                title={active.endorsedAt ? "Already endorsed" : "Endorse applicant"}
+                disabled={!!active.endorsedAt}
               >
-                Endorse
+                {active.endorsedAt ? "Endorsed" : "Endorse"}
               </button>
             </div>
           </div>
