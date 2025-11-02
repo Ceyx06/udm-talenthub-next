@@ -1,286 +1,278 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import PageHeader from "@/components/common/PageHeader";
-import Badge from "@/components/common/Badge";
+import { useState, useEffect } from 'react';
+import { Search } from 'lucide-react';
 
-type Status = "Pending" | "Scheduled" | "Completed";
-
-type Row = {
+interface Interview {
   id: string;
-  name: string;
-  job: string;
-  interview: string; // YYYY-MM-DD or "-"
-  demo: string;      // YYYY-MM-DD or "-"
-  status: Status;
-};
-
-const initialRows: Row[] = [
-  { id: "A001", name: "Juan Dela Cruz", job: "Associate Professor", interview: "2024-02-15", demo: "2024-02-20", status: "Scheduled" },
-  { id: "A002", name: "Maria Santos", job: "Instructor",            interview: "-",             demo: "-",             status: "Pending" },
-  { id: "A003", name: "Pedro Garcia",  job: "Assistant Professor",  interview: "2024-02-10", demo: "2024-02-12", status: "Completed" },
-];
-
-function fmt(date: string) {
-  if (!date || date === "-") return "—";
-  const d = new Date(date + "T00:00:00");
-  if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  interviewId: string;
+  applicationId: string;
+  interviewDate: string | null;
+  teachingDemoDate: string | null;
+  status: string;
+  notes: string | null;
+  application: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    desiredPosition: string;
+    qrCode: string;
+    vacancy: {
+      title: string;
+      college: string;
+    };
+  };
 }
 
-// Pills like in the screenshot (keeps your 3 options only)
-function StatusPill({ status }: { status: Status }) {
-  if (status === "Pending") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-        Pending
-      </span>
-    );
-  }
-  if (status === "Scheduled") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800">
-        Scheduled
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full border border-green-300 bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
-      Completed
-    </span>
-  );
-}
+export default function InterviewDemoPage() {
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-export default function Page() {
-  const [rows, setRows] = useState<Row[]>(initialRows);
-  const [q, setQ] = useState("");
+  useEffect(() => {
+    fetchInterviews();
+  }, []);
 
-  // schedule modal state
-  const [open, setOpen] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [interviewDate, setInterviewDate] = useState<string>("");
-  const [demoDate, setDemoDate] = useState<string>("");
-
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter(
-      (r) =>
-        r.id.toLowerCase().includes(term) ||
-        r.name.toLowerCase().includes(term) ||
-        r.job.toLowerCase().includes(term)
-    );
-  }, [q, rows]);
-
-  // open schedule dialog for a row
-  function openSchedule(row: Row) {
-    setActiveId(row.id);
-    setInterviewDate(row.interview !== "-" ? row.interview : "");
-    setDemoDate(row.demo !== "-" ? row.demo : "");
-    setOpen(true);
-  }
-
-  function closeSchedule() {
-    setOpen(false);
-    setActiveId(null);
-    setInterviewDate("");
-    setDemoDate("");
-  }
-
-  // save schedule -> sets dates and flips status to Scheduled
-  function saveSchedule() {
-    if (!activeId) return;
-    if (!interviewDate || !demoDate) {
-      // very light validation; you can toast here
-      return;
+  const fetchInterviews = async () => {
+    try {
+      const response = await fetch('/api/interviews');
+      const data = await response.json();
+      setInterviews(data);
+    } catch (error) {
+      console.error('Failed to fetch interviews:', error);
+    } finally {
+      setIsLoading(false);
     }
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === activeId
-          ? { ...r, interview: interviewDate, demo: demoDate, status: "Scheduled" }
-          : r
-      )
-    );
-    closeSchedule();
-  }
+  };
 
-  function markComplete(row: Row) {
-    setRows((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: "Completed" } : r))
-    );
-  }
+  const updateInterviewStatus = async (
+    interviewId: string,
+    status: string
+  ) => {
+    try {
+      const response = await fetch(`/api/interviews/${interviewId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
 
-  function markUncomplete(row: Row) {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === row.id ? { ...r, status: "Pending", interview: "-", demo: "-" } : r
-      )
-    );
-  }
+      if (!response.ok) throw new Error('Failed to update interview');
 
-  function endorsed(/* row: Row */) {
-    // hook this to your endorse/forward flow
-    // e.g., router.push(`/dean/endorse/${row.id}`)
+      await fetchInterviews();
+
+      const statusMessage = status === 'Completed'
+        ? 'Interview marked as completed'
+        : status === 'Endorsed'
+          ? 'Applicant endorsed successfully'
+          : `Interview status updated to ${status}`;
+
+      alert(statusMessage);
+    } catch (error) {
+      console.error('Failed to update interview:', error);
+      alert('Failed to update interview status');
+    }
+  };
+
+  const setSchedule = async (interviewId: string) => {
+    const interviewDateStr = prompt('Enter interview date (YYYY-MM-DD HH:MM):');
+    const teachingDemoDateStr = prompt('Enter teaching demo date (YYYY-MM-DD HH:MM):');
+
+    if (!interviewDateStr || !teachingDemoDateStr) return;
+
+    try {
+      const response = await fetch(`/api/interviews/${interviewId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'Scheduled',
+          interviewDate: interviewDateStr,
+          teachingDemoDate: teachingDemoDateStr,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to set schedule');
+
+      await fetchInterviews();
+      alert('Schedule set successfully');
+    } catch (error) {
+      console.error('Failed to set schedule:', error);
+      alert('Failed to set schedule');
+    }
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '—';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  const filteredInterviews = interviews.filter(
+    (interview) =>
+      interview.application.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      interview.interviewId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      interview.application.qrCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (interview.application.desiredPosition?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (interview.application.vacancy?.title?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Interview & Teaching Demo"
-        subtitle="Schedule and manage interviews"
-      />
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">
+          Interview & Teaching Demo
+        </h1>
+        <p className="text-gray-600 mt-1">Schedule and manage interviews</p>
+      </div>
 
-      {/* Top search like in your mock */}
-      <div className="rounded-xl border bg-white p-4">
-        <div className="relative sm:w-96">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search applicants…"
-            className="w-full rounded-lg border px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+      <div className="mb-6">
+        <div className="relative">
+          <Search
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            size={20}
           />
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-            ⌘K
-          </div>
+          <input
+            type="text"
+            placeholder="Search applicants..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border bg-white overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left">
-              <tr className="text-gray-700">
-                <th className="p-3 font-medium">Applicant ID</th>
-                <th className="p-3 font-medium">Name</th>
-                <th className="p-3 font-medium">Job Title</th>
-                <th className="p-3 font-medium">Interview Date</th>
-                <th className="p-3 font-medium">Teaching Demo Date</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 text-right font-medium w-64">Actions</th>
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Applicant ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Job Title
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Interview Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Teaching Demo Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-t hover:bg-gray-50/60">
-                  <td className="p-3">{r.id}</td>
-                  <td className="p-3">{r.name}</td>
-                  <td className="p-3">{r.job}</td>
-                  <td className="p-3">{fmt(r.interview)}</td>
-                  <td className="p-3">{fmt(r.demo)}</td>
-                  <td className="p-3">
-                    <StatusPill status={r.status} />
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredInterviews.map((interview) => (
+                <tr key={interview.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {interview.interviewId}
                   </td>
-                  <td className="p-3">
-                    <div className="flex justify-end gap-2">
-                      {r.status === "Pending" && (
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {interview.application.fullName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {interview.application.desiredPosition || interview.application.vacancy?.title || 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatDate(interview.interviewDate)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatDate(interview.teachingDemoDate)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`px-2 py-1 text-xs font-semibold rounded ${interview.status === 'Completed'
+                          ? 'bg-green-100 text-green-800'
+                          : interview.status === 'Scheduled'
+                            ? 'bg-blue-100 text-blue-800'
+                            : interview.status === 'Endorsed'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                        }`}
+                    >
+                      {interview.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                    {interview.status === 'Pending' && (
+                      <button
+                        onClick={() => setSchedule(interview.id)}
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                      >
+                        Set Schedule
+                      </button>
+                    )}
+                    {interview.status === 'Scheduled' && (
+                      <>
                         <button
-                          onClick={() => openSchedule(r)}
-                          className="rounded-md bg-blue-900 text-white px-3 py-1.5 hover:bg-blue-800"
+                          onClick={() =>
+                            updateInterviewStatus(interview.id, 'Completed')
+                          }
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
                         >
-                          Set Schedule
+                          Mark Complete
                         </button>
-                      )}
-
-                      {r.status === "Scheduled" && (
-                        <>
-                          <button
-                            onClick={() => markComplete(r)}
-                            className="rounded-md bg-blue-900 text-white px-3 py-1.5 hover:bg-blue-800"
-                          >
-                            Mark Complete
-                          </button>
-                          <button
-                            onClick={() => markUncomplete(r)}
-                            className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-                          >
-                            Mark Uncomplete
-                          </button>
-                        </>
-                      )}
-
-                      {r.status === "Completed" && (
                         <button
-                          onClick={() => endorsed()}
-                          className="rounded-md bg-blue-900 text-white px-3 py-1.5 hover:bg-blue-800"
+                          onClick={() =>
+                            updateInterviewStatus(interview.id, 'Pending')
+                          }
+                          className="px-3 py-1 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition"
                         >
-                          Endorsed
+                          Mark Uncomplete
                         </button>
-                      )}
-                    </div>
+                      </>
+                    )}
+                    {interview.status === 'Completed' && (
+                      <button
+                        onClick={() =>
+                          updateInterviewStatus(interview.id, 'Endorsed')
+                        }
+                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                      >
+                        Endorsed
+                      </button>
+                    )}
+                    {interview.status === 'Endorsed' && (
+                      <span className="px-3 py-1 text-xs text-gray-500">
+                        Applicant Endorsed
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
-
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-gray-500">
-                    No records found.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Simple calendar modal (Interview + Demo) */}
-      {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          onClick={closeSchedule}
-        >
-          <div
-            className="w-full max-w-md rounded-xl border bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-semibold">Set Schedule</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Choose the Interview Date and Teaching Demo Date.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm">
-                <span className="text-gray-700">Interview Date</span>
-                <input
-                  type="date"
-                  value={interviewDate}
-                  onChange={(e) => setInterviewDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-                />
-              </label>
-
-              <label className="block text-sm">
-                <span className="text-gray-700">Teaching Demo Date</span>
-                <input
-                  type="date"
-                  value={demoDate}
-                  onChange={(e) => setDemoDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-                />
-              </label>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={closeSchedule}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveSchedule}
-                className="rounded-md bg-blue-900 text-white px-4 py-1.5 hover:bg-blue-800 disabled:opacity-50"
-                disabled={!interviewDate || !demoDate}
-              >
-                Save
-              </button>
-            </div>
+        {filteredInterviews.length === 0 && (
+          <div className="text-center py-12 text-gray-500">
+            {searchQuery ? 'No interviews found matching your search' : 'No interviews scheduled yet'}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
