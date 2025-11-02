@@ -1,4 +1,3 @@
-// src/components/layout/SidebarHR.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -10,7 +9,7 @@ type Item = { href: string; label: string; icon: React.ReactNode };
 
 const NAV: Item[] = [
   { href: "/hr/dashboard", label: "Dashboard", icon: <span>📊</span> },
-  { href: "/hr/analytics", label: "Analytics", icon: <span>📈</span> }, // <-- NEW
+  { href: "/hr/analytics", label: "Analytics", icon: <span>📈</span> },
   { href: "/hr/vacancies", label: "Vacancies", icon: <span>🧾</span> },
   { href: "/hr/applicants", label: "Applicants", icon: <span>👥</span> },
   { href: "/hr/evaluation", label: "Evaluation", icon: <span>🧪</span> },
@@ -22,6 +21,7 @@ const NAV: Item[] = [
 export function SidebarHR() {
   const pathname = usePathname();
   const [logoOk, setLogoOk] = useState(true);
+  const settingsActive = pathname.startsWith("/hr/settings");
 
   return (
     <aside
@@ -83,12 +83,29 @@ export function SidebarHR() {
 
       {/* Footer */}
       <div className="sticky bottom-0 px-3 py-3 bg-[var(--teal-300)]/65 backdrop-blur-sm border-t border-[rgba(15,110,116,0.06)]">
-        <div className="rounded-xl border bg-[var(--card-bg)] px-3 py-2 text-xs text-slate-600 flex items-center justify-between shadow-sm">
+        {/* Settings button */}
+        <Link
+          href="/hr/settings"
+          aria-current={settingsActive ? "page" : undefined}
+          className={[
+            "mb-2 w-full inline-flex items-center justify-between rounded-2xl px-3 py-2 text-sm transition",
+            "border",
+            settingsActive
+              ? "bg-[var(--teal-700)]/10 border-[rgba(15,110,116,0.18)] text-[var(--teal-700)] shadow-sm"
+              : "bg-[var(--card-bg)] border-[rgba(255,255,255,0.6)] text-slate-700 hover:bg-white/80 hover:shadow-sm",
+          ].join(" ")}
+        >
+          <span className="inline-flex items-center gap-2">
+            <span>⚙️</span>
+            <span className="font-medium">Settings</span>
+          </span>
+        </Link>
+
+        <div className="rounded-2xl border bg-[var(--card-bg)] px-3 py-2 text-xs text-slate-600 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
             <span>HR User</span>
           </div>
-
         </div>
 
         <Link

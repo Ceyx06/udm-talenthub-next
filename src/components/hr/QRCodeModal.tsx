@@ -1,180 +1,204 @@
+// components/hr/QRCodeModal.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 
-interface Vacancy {
-    id: string;
-    title: string;
-    college: string;
-    postedDate: string;
-}
-
 interface QRCodeModalProps {
-    vacancy: Vacancy;
+    vacancy: {
+        id: string;
+        title: string;
+        college: string;
+    };
     onClose: () => void;
 }
 
 export default function QRCodeModal({ vacancy, onClose }: QRCodeModalProps) {
-    const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+    const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [copySuccess, setCopySuccess] = useState(false);
+
+    // Get the public URL - matches the format from your page.tsx
+    const getPublicLink = () => {
+        const base =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_BASE_URL ||
+            (typeof window !== 'undefined' ? window.location.origin : '');
+
+        // Use the same format as your copyPublicLink function
+        return `${base}/apply?vacancy=${vacancy.id}`;
+    };
 
     useEffect(() => {
         generateQRCode();
     }, [vacancy.id]);
 
     const generateQRCode = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            setError(null);
+            const publicJobLink = getPublicLink();
 
-            // Get the base URL from environment variable or window
-            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
-                (typeof window !== 'undefined' ? window.location.origin : '');
+            // Log for debugging
+            console.log('🔗 Generating QR code for:', publicJobLink);
 
-            // Create the public job URL - using /apply route
-            const publicUrl = `${baseUrl}/apply?vacancy=${encodeURIComponent(vacancy.id)}`;
-
-            // Generate QR code
-            const qrDataUrl = await QRCode.toDataURL(publicUrl, {
-                width: 300,
+            // Generate QR code with the public URL
+            const qrDataUrl = await QRCode.toDataURL(publicJobLink, {
+                width: 400,
                 margin: 2,
                 color: {
-                    dark: '#1e3a8a', // Navy blue to match your theme
-                    light: '#ffffff',
+                    dark: '#1e3a8a', // Dark blue to match your theme
+                    light: '#ffffff'
                 },
-                errorCorrectionLevel: 'M',
+                errorCorrectionLevel: 'M'
             });
 
-            setQrCodeDataUrl(qrDataUrl);
-        } catch (err) {
-            console.error('Error generating QR code:', err);
-            setError('Failed to generate QR code');
+            setQrCodeUrl(qrDataUrl);
+        } catch (error) {
+            console.error('❌ Error generating QR code:', error);
+            alert('Failed to generate QR code. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDownload = () => {
-        if (!qrCodeDataUrl) return;
+    const copyToClipboard = async () => {
+        try {
+            const publicJobLink = getPublicLink();
+            await navigator.clipboard.writeText(publicJobLink);
+            setCopySuccess(true);
+
+            // Reset after 2 seconds
+            setTimeout(() => {
+                setCopySuccess(false);
+            }, 2000);
+        } catch (error) {
+            console.error('❌ Error copying to clipboard:', error);
+            alert('Failed to copy link to clipboard!');
+        }
+    };
+
+    const handleDownloadQR = () => {
+        if (!qrCodeUrl) return;
 
         const link = document.createElement('a');
-        link.download = `${vacancy.title.replace(/\s+/g, '-')}-QR-Code.png`;
-        link.href = qrCodeDataUrl;
+        link.download = `qr-${vacancy.title.replace(/\s+/g, '-').toLowerCase()}.png`;
+        link.href = qrCodeUrl;
         link.click();
     };
 
-    const handleCopyLink = () => {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
-            (typeof window !== 'undefined' ? window.location.origin : '');
-        const publicUrl = `${baseUrl}/jobs/${encodeURIComponent(vacancy.id)}`;
-
-        navigator.clipboard.writeText(publicUrl);
-        alert('Link copied to clipboard!');
-    };
-
-    const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (e.target === e.currentTarget) {
-            onClose();
-        }
-    };
+    // Close on Escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
 
     return (
         <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={handleBackdropClick}
+            onClick={onClose}
         >
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div
+                className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b">
+                <div className="flex justify-between items-start mb-6">
                     <div>
-                        <h2 className="text-xl font-semibold text-gray-900">Job Posting QR Code</h2>
-                        <p className="text-sm text-gray-500 mt-1">{vacancy.title}</p>
+                        <h3 className="text-2xl font-bold text-gray-900">Job Posting QR Code</h3>
+                        <p className="text-sm text-gray-500 mt-1">Share this code with applicants</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-gray-400 hover:text-gray-600 text-3xl leading-none transition-colors"
+                        aria-label="Close"
                     >
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        ×
                     </button>
                 </div>
 
-                {/* Body */}
-                <div className="p-6">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
-                            <p className="mt-4 text-gray-600">Generating QR code...</p>
-                        </div>
-                    ) : error ? (
-                        <div className="text-center py-8">
-                            <div className="text-red-600 mb-4">
-                                <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
+                {/* QR Code Display */}
+                <div className="flex flex-col items-center">
+                    <div className="bg-white p-6 rounded-lg border-2 border-gray-200 mb-6 shadow-sm">
+                        {loading ? (
+                            <div className="w-80 h-80 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                             </div>
-                            <p className="text-red-600 font-medium">{error}</p>
-                            <button
-                                onClick={generateQRCode}
-                                className="mt-4 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
-                            >
-                                Try Again
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="text-center">
-                            {/* QR Code Image */}
-                            <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
-                                <img
-                                    src={qrCodeDataUrl}
-                                    alt="Job Posting QR Code"
-                                    className="w-full h-auto max-w-[300px]"
-                                />
+                        ) : qrCodeUrl ? (
+                            <img
+                                src={qrCodeUrl}
+                                alt="Job QR Code"
+                                className="w-80 h-80"
+                            />
+                        ) : (
+                            <div className="w-80 h-80 flex items-center justify-center text-red-500">
+                                Failed to generate QR code
                             </div>
+                        )}
+                    </div>
 
-                            {/* Instructions */}
-                            <p className="text-sm text-gray-600 mt-4">
-                                Scan this QR code to view the job posting
+                    {/* Job Info */}
+                    <div className="text-center mb-4 w-full">
+                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Job Position</p>
+                        <p className="font-bold text-xl text-gray-900 mb-1">{vacancy.title}</p>
+                        <p className="text-sm text-gray-600">{vacancy.college}</p>
+                    </div>
+
+                    {/* Public Link Display */}
+                    <div className="w-full bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">
+                                Public Application Link
                             </p>
-
-                            {/* College Badge */}
-                            <div className="mt-3">
-                                <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
-                                    {vacancy.college}
-                                </span>
-                            </div>
-
-                            {/* Public URL Display */}
-                            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                                <p className="text-xs text-gray-500 mb-1">Public Link:</p>
-                                <p className="text-sm text-gray-700 break-all font-mono">
-                                    {process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/jobs/{vacancy.id}
-                                </p>
-                            </div>
+                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded font-medium">
+                                ✓ Live
+                            </span>
                         </div>
-                    )}
-                </div>
+                        <div className="bg-white p-3 rounded border border-gray-200">
+                            <p className="text-xs font-mono break-all text-gray-700">
+                                {getPublicLink()}
+                            </p>
+                        </div>
+                    </div>
 
-                {/* Footer */}
-                {!loading && !error && (
-                    <div className="flex gap-3 p-6 border-t bg-gray-50 rounded-b-xl">
+                    {/* Instructions */}
+                    <div className="w-full bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <p className="text-sm text-blue-800">
+                            <span className="font-semibold">📱 How to use:</span> Applicants can scan this QR code
+                            with their phone camera or any QR code reader to directly access the application form.
+                        </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 w-full">
                         <button
-                            onClick={handleCopyLink}
-                            className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                            onClick={copyToClipboard}
+                            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${copySuccess
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
                         >
-                            📋 Copy Link
+                            {copySuccess ? '✓ Copied!' : 'Copy Link'}
                         </button>
                         <button
-                            onClick={handleDownload}
-                            className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors font-medium"
+                            onClick={handleDownloadQR}
+                            disabled={!qrCodeUrl || loading}
+                            className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            ⬇️ Download
+                            Download QR
                         </button>
                     </div>
-                )}
+
+                    {/* Close Button */}
+                    <button
+                        onClick={onClose}
+                        className="mt-3 w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+                    >
+                        Close
+                    </button>
+                </div>
             </div>
         </div>
     );

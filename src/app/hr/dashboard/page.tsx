@@ -1,7 +1,7 @@
 // src/app/hr/dashboard/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/common/PageHeader";
 import {
@@ -43,6 +43,14 @@ interface PendingActionCounts {
     offersToApprove: number;
     contractsToRenew: number;
 }
+
+type VacancyRequest = {
+    id: string;
+    title: string;
+    college: DeptKey | string;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "DRAFT";
+    createdAt: string;
+};
 
 /* ---------------- Demo data ---------------- */
 const COLORS = {
@@ -90,7 +98,7 @@ const MOCK_FILLED = {
     year: { value: 92, target: 120 },
 };
 
-/* ---------------- Tiny components (inline) ---------------- */
+/* ---------------- Tiny components ---------------- */
 function Panel({
     title,
     subtitle,
@@ -126,7 +134,7 @@ function Progress({ value, target, label }: { value: number; target: number; lab
     );
 }
 
-/** KPI-style stat tile (matches your top 4 cards look) */
+/** KPI-style stat tile */
 function StatTile({
     title,
     value,
@@ -179,6 +187,38 @@ export default function HRDashboard() {
     const [openRoles] = useState<OpenRole[]>(MOCK_OPEN_ROLES);
     const [ttfRows] = useState<TimeToFillRow[]>(MOCK_TTF);
     const [pending] = useState<PendingActionCounts>(MOCK_PENDING);
+
+    // 🔔 Vacancy Requests (from Deans)
+    const [pendingRequests, setPendingRequests] = useState<number>(0);
+
+    // Fetch & poll vacancy requests
+    useEffect(() => {
+        let alive = true;
+        const load = async () => {
+            try {
+                const res = await fetch("/api/dean/vacancy-request", { cache: "no-store" });
+                const text = await res.text();
+                let json: any = {};
+                try {
+                    json = text ? JSON.parse(text) : {};
+                } catch {
+                    json = {};
+                }
+                const list: VacancyRequest[] = json?.data ?? [];
+                const count = Array.isArray(list) ? list.filter((r) => r?.status === "PENDING").length : 0;
+                if (alive) setPendingRequests(count);
+            } catch {
+                if (alive) setPendingRequests(0);
+            }
+        };
+
+        load();
+        const id = setInterval(load, 30_000); // every 30s
+        return () => {
+            alive = false;
+            clearInterval(id);
+        };
+    }, []);
 
     // Aggregations
     const openByDept = useMemo(() => {
@@ -240,8 +280,21 @@ export default function HRDashboard() {
                 />
             </div>
 
-            {/* --- Pending Actions as KPI tiles --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* 🔔 Info bar when there are pending requests */}
+            {pendingRequests > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    {pendingRequests} new vacancy {pendingRequests === 1 ? "request" : "requests"} awaiting HR review.
+                    <button
+                        onClick={() => router.push("/hr/vacancies?status=DRAFT")}
+                        className="ml-3 inline-flex rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium hover:bg-amber-100"
+                    >
+                        Open in Vacancies
+                    </button>
+                </div>
+            )}
+
+            {/* --- KPI tiles (Vacancy Requests moved beside Contracts) --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatTile
                     title="Applications to Review"
                     value={pending.toReview}
@@ -263,50 +316,32 @@ export default function HRDashboard() {
                     tone="sand"
                     onClick={() => router.push("/hr/renewals")}
                 />
+                {/* Vacancy Requests tile → Vacancies page filtered to DRAFT */}
+                <StatTile
+                    title="Vacancy Requests"
+                    value={pendingRequests}
+                    subtitle="From Deans (Pending)"
+                    tone="mint"
+                    onClick={() => router.push("/hr/vacancies?status=DRAFT")}
+                />
             </div>
 
             {/* Row: Progress + Expanded Pipeline */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-3">
-                    <Progress
-                        label="Positions Filled — This Month"
-                        value={MOCK_FILLED.month.value}
-                        target={MOCK_FILLED.month.target}
-                    />
-                    <Progress
-                        label="Positions Filled — This Quarter"
-                        value={MOCK_FILLED.quarter.value}
-                        target={MOCK_FILLED.quarter.target}
-                    />
-                    <Progress
-                        label="Positions Filled — This Year"
-                        value={MOCK_FILLED.year.value}
-                        target={MOCK_FILLED.year.target}
-                    />
+                    <Progress label="Positions Filled — This Month" value={MOCK_FILLED.month.value} target={MOCK_FILLED.month.target} />
+                    <Progress label="Positions Filled — This Quarter" value={MOCK_FILLED.quarter.value} target={MOCK_FILLED.quarter.target} />
+                    <Progress label="Positions Filled — This Year" value={MOCK_FILLED.year.value} target={MOCK_FILLED.year.target} />
                 </div>
 
                 {/* Expanded across 2 columns */}
                 <div className="lg:col-span-2">
-                    <Panel
-                        title="Hiring Pipeline Status"
-                        subtitle="Funnel from Applications → Accepted (click a bar to open Applicants)"
-                    >
+                    <Panel title="Hiring Pipeline Status" subtitle="Funnel from Applications → Accepted (click a bar to open Applicants)">
                         <div className="h-80">
                             <ResponsiveContainer>
-                                <BarChart
-                                    data={MOCK_PIPELINE}
-                                    barCategoryGap={20}
-                                    margin={{ top: 10, right: 16, left: 0, bottom: 10 }}
-                                >
+                                <BarChart data={MOCK_PIPELINE} barCategoryGap={20} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-                                    <XAxis
-                                        dataKey="stage"
-                                        stroke="#64748b"
-                                        interval={0}       // <- show ALL five labels
-                                        tick={{ fontSize: 12 }}
-                                        height={40}
-                                        tickMargin={8}
-                                    />
+                                    <XAxis dataKey="stage" stroke="#64748b" interval={0} tick={{ fontSize: 12 }} height={40} tickMargin={8} />
                                     <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
                                     <Tooltip />
                                     <Legend />
@@ -329,10 +364,7 @@ export default function HRDashboard() {
 
             {/* Row: Current Open Positions + Time to Fill */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Panel
-                    title="Current Open Positions"
-                    subtitle="Number open by department & average days open (click a bar)"
-                >
+                <Panel title="Current Open Positions" subtitle="Number open by department & average days open (click a bar)">
                     <div className="h-72">
                         <ResponsiveContainer>
                             <BarChart data={openByDept}>
