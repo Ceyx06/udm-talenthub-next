@@ -22,20 +22,30 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
     const [formData, setFormData] = useState({
         college: '',
         title: '',
-        status: 'Active',
+        status: 'OPEN',
         description: '',
         requirements: ''
     });
     const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (vacancy) {
             setFormData({
                 college: vacancy.college,
                 title: vacancy.title,
-                status: vacancy.status,
+                status: vacancy.status || 'OPEN',
                 description: vacancy.description,
                 requirements: vacancy.requirements
+            });
+        } else {
+            // Reset form when creating new vacancy
+            setFormData({
+                college: '',
+                title: '',
+                status: 'OPEN',
+                description: '',
+                requirements: ''
             });
         }
     }, [vacancy]);
@@ -43,6 +53,7 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
+        setError(null);
 
         try {
             const url = vacancy 
@@ -50,6 +61,11 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
                 : '/api/hr/vacancies';
             
             const method = vacancy ? 'PUT' : 'POST';
+
+            console.log('=== VACANCY FORM SUBMISSION ===');
+            console.log('URL:', url);
+            console.log('Method:', method);
+            console.log('Form Data:', formData);
 
             const response = await fetch(url, {
                 method,
@@ -59,14 +75,34 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
                 body: JSON.stringify(formData),
             });
 
+            console.log('Response Status:', response.status);
+            console.log('Response OK:', response.ok);
+
+            let data;
+            try {
+                data = await response.json();
+                console.log('Response Data:', data);
+            } catch (parseError) {
+                console.error('Failed to parse response:', parseError);
+                throw new Error('Invalid response from server');
+            }
+
             if (response.ok) {
+                console.log('✅ Success! Vacancy saved.');
                 onSuccess();
+                onClose();
             } else {
-                alert('Failed to save vacancy');
+                const errorMessage = data.error || data.message || `Failed to save vacancy (${response.status})`;
+                setError(errorMessage);
+                console.error('❌ API Error:', errorMessage);
+                if (data.details) {
+                    console.error('Error Details:', data.details);
+                }
             }
         } catch (error) {
-            console.error('Error saving vacancy:', error);
-            alert('Error saving vacancy');
+            console.error('❌ Network/Request Error:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
+            setError(errorMessage);
         } finally {
             setSubmitting(false);
         }
@@ -83,12 +119,27 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
                         <button
                             onClick={onClose}
                             className="text-gray-400 hover:text-gray-600"
+                            type="button"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
+
+                    {error && (
+                        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="flex items-start">
+                                <svg className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                                <div>
+                                    <p className="text-sm font-medium text-red-800">Error saving vacancy</p>
+                                    <p className="text-sm text-red-700 mt-1">{error}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
@@ -106,8 +157,8 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
                                 <option value="CHS">CHS - College of Health Sciences</option>
                                 <option value="CBPM">CBPM - College of Business and Public Management</option>
                                 <option value="CED">CED - College of Education</option>
-                                <option value="CENG">CENG - College of Engineering</option>
-                                <option value="CITCS">CITCS - College of Information Technology and Computer Science</option>
+                                <option value="CENG">CCS - College of Computing Studies</option>
+                                <option value="CCj">CCJ - College of and Criminal Justice</option>
                             </select>
                         </div>
 
@@ -135,9 +186,9 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
                                 value={formData.status}
                                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                             >
-                                <option value="Active">Active</option>
-                                <option value="Closed">Closed</option>
-                                <option value="On Hold">On Hold</option>
+                                <option value="OPEN">Open</option>
+                                <option value="CLOSED">Closed</option>
+                                <option value="ON_HOLD">On Hold</option>
                             </select>
                         </div>
 
@@ -174,13 +225,14 @@ export default function VacancyModal({ vacancy, onClose, onSuccess }: VacancyMod
                                 type="button"
                                 onClick={onClose}
                                 className="flex-1 px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                disabled={submitting}
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="flex-1 px-6 py-2 bg-blue-900 text-white font-medium rounded-lg hover:bg-blue-800 transition-colors disabled:bg-gray-400"
+                                className="flex-1 px-6 py-2 bg-blue-900 text-white font-medium rounded-lg hover:bg-blue-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
                                 {submitting ? 'Saving...' : vacancy ? 'Update Vacancy' : 'Post Vacancy'}
                             </button>

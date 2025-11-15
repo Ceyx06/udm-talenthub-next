@@ -1,14 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Public API: Get single vacancy for application page
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  _req: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  
   try {
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
 
     const vacancy = await prisma.vacancy.findFirst({
       where: {
-        id: params.id,
+        id,
         // Accept both "OPEN" and "Active" status
         status: { in: ["OPEN", "Active"] },
         postedDate: { gte: cutoff }

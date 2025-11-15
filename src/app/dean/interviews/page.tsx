@@ -1,286 +1,225 @@
+// app/dean/interviews/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useState, useEffect } from "react";
 import PageHeader from "@/components/common/PageHeader";
-import Badge from "@/components/common/Badge";
+import { CheckCircle, XCircle } from "lucide-react";
 
-type Status = "Pending" | "Scheduled" | "Completed";
+export default function DeanInterviewsPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [interviews, setInterviews] = useState<any[]>([]);
 
-type Row = {
-  id: string;
-  name: string;
-  job: string;
-  interview: string; // YYYY-MM-DD or "-"
-  demo: string;      // YYYY-MM-DD or "-"
-  status: Status;
-};
+  useEffect(() => {
+    fetchInterviews();
+  }, []);
 
-const initialRows: Row[] = [
-  { id: "A001", name: "Juan Dela Cruz", job: "Associate Professor", interview: "2024-02-15", demo: "2024-02-20", status: "Scheduled" },
-  { id: "A002", name: "Maria Santos", job: "Instructor",            interview: "-",             demo: "-",             status: "Pending" },
-  { id: "A003", name: "Pedro Garcia",  job: "Assistant Professor",  interview: "2024-02-10", demo: "2024-02-12", status: "Completed" },
-];
+  const fetchInterviews = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const res = await fetch('/api/interviews/dean?role=DEAN');
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.substring(0, 100)}`);
+      }
+      
+      const contentType = res.headers.get('content-type');
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error('Server returned HTML instead of JSON. Check terminal for errors.');
+      }
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setInterviews(data.data || []);
+      } else {
+        throw new Error(data.error || 'Failed to fetch interviews');
+      }
+    } catch (err: any) {
+      console.error('Fetch error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-function fmt(date: string) {
-  if (!date || date === "-") return "—";
-  const d = new Date(date + "T00:00:00");
-  if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-// Pills like in the screenshot (keeps your 3 options only)
-function StatusPill({ status }: { status: Status }) {
-  if (status === "Pending") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-        Pending
-      </span>
-    );
-  }
-  if (status === "Scheduled") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800">
-        Scheduled
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full border border-green-300 bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
-      Completed
-    </span>
-  );
-}
-
-export default function Page() {
-  const [rows, setRows] = useState<Row[]>(initialRows);
-  const [q, setQ] = useState("");
-
-  // schedule modal state
-  const [open, setOpen] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [interviewDate, setInterviewDate] = useState<string>("");
-  const [demoDate, setDemoDate] = useState<string>("");
-
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter(
-      (r) =>
-        r.id.toLowerCase().includes(term) ||
-        r.name.toLowerCase().includes(term) ||
-        r.job.toLowerCase().includes(term)
-    );
-  }, [q, rows]);
-
-  // open schedule dialog for a row
-  function openSchedule(row: Row) {
-    setActiveId(row.id);
-    setInterviewDate(row.interview !== "-" ? row.interview : "");
-    setDemoDate(row.demo !== "-" ? row.demo : "");
-    setOpen(true);
-  }
-
-  function closeSchedule() {
-    setOpen(false);
-    setActiveId(null);
-    setInterviewDate("");
-    setDemoDate("");
-  }
-
-  // save schedule -> sets dates and flips status to Scheduled
-  function saveSchedule() {
-    if (!activeId) return;
-    if (!interviewDate || !demoDate) {
-      // very light validation; you can toast here
+  const handleMarkComplete = async (interviewId: string, applicationId: string) => {
+    if (!confirm('Mark this interview as complete? The applicant will be moved to Evaluation.')) {
       return;
     }
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === activeId
-          ? { ...r, interview: interviewDate, demo: demoDate, status: "Scheduled" }
-          : r
-      )
+
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}/complete`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert('Interview marked as complete! Applicant moved to Evaluation.');
+        fetchInterviews(); // Refresh the list
+      } else {
+        alert(data.error || 'Failed to mark as complete');
+      }
+    } catch (err: any) {
+      console.error('Error marking complete:', err);
+      alert('Failed to mark interview as complete');
+    }
+  };
+
+  const handleMarkIncomplete = async (interviewId: string, applicationId: string) => {
+    const reason = prompt('Reason for marking incomplete (optional):');
+    
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}/incomplete`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId, reason })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert('Interview marked as incomplete. Applicant moved back to HR Applicants for rescheduling.');
+        fetchInterviews(); // Refresh the list
+      } else {
+        alert(data.error || 'Failed to mark as incomplete');
+      }
+    } catch (err: any) {
+      console.error('Error marking incomplete:', err);
+      alert('Failed to mark interview as incomplete');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <PageHeader title="Interview & Demo" subtitle="Loading..." />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+        </div>
+      </div>
     );
-    closeSchedule();
   }
 
-  function markComplete(row: Row) {
-    setRows((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: "Completed" } : r))
+  if (error) {
+    return (
+      <div className="p-6">
+        <PageHeader title="Interview & Demo" subtitle="Error loading interviews" />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h3 className="font-semibold text-red-900 mb-2">Error</h3>
+          <p className="text-red-700 mb-4">{error}</p>
+          <div className="space-y-2 text-sm text-red-600">
+            <p><strong>Troubleshooting steps:</strong></p>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Check if file exists: <code className="bg-red-100 px-1 rounded">app/api/interviews/dean/route.ts</code></li>
+              <li>Check terminal for build errors</li>
+              <li>Restart dev server: <code className="bg-red-100 px-1 rounded">npm run dev</code></li>
+              <li>Check browser console (F12) for more details</li>
+            </ol>
+          </div>
+          <button
+            onClick={fetchInterviews}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
     );
-  }
-
-  function markUncomplete(row: Row) {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === row.id ? { ...r, status: "Pending", interview: "-", demo: "-" } : r
-      )
-    );
-  }
-
-  function endorsed(/* row: Row */) {
-    // hook this to your endorse/forward flow
-    // e.g., router.push(`/dean/endorse/${row.id}`)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <PageHeader
-        title="Interview & Teaching Demo"
-        subtitle="Schedule and manage interviews"
+        title="Interview & Demo"
+        subtitle="Manage interview schedules and teaching demonstrations"
       />
 
-      {/* Top search like in your mock */}
-      <div className="rounded-xl border bg-white p-4">
-        <div className="relative sm:w-96">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search applicants…"
-            className="w-full rounded-lg border px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-          />
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-            ⌘K
+      {/* Interviews Table */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        {interviews.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <p className="text-lg font-medium mb-2">No interviews scheduled yet</p>
+            <p className="text-sm">Interviews will appear here after HR schedules them.</p>
           </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-xl border bg-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left">
-              <tr className="text-gray-700">
-                <th className="p-3 font-medium">Applicant ID</th>
-                <th className="p-3 font-medium">Name</th>
-                <th className="p-3 font-medium">Job Title</th>
-                <th className="p-3 font-medium">Interview Date</th>
-                <th className="p-3 font-medium">Teaching Demo Date</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 text-right font-medium w-64">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-t hover:bg-gray-50/60">
-                  <td className="p-3">{r.id}</td>
-                  <td className="p-3">{r.name}</td>
-                  <td className="p-3">{r.job}</td>
-                  <td className="p-3">{fmt(r.interview)}</td>
-                  <td className="p-3">{fmt(r.demo)}</td>
-                  <td className="p-3">
-                    <StatusPill status={r.status} />
-                  </td>
-                  <td className="p-3">
-                    <div className="flex justify-end gap-2">
-                      {r.status === "Pending" && (
-                        <button
-                          onClick={() => openSchedule(r)}
-                          className="rounded-md bg-blue-900 text-white px-3 py-1.5 hover:bg-blue-800"
-                        >
-                          Set Schedule
-                        </button>
-                      )}
-
-                      {r.status === "Scheduled" && (
-                        <>
-                          <button
-                            onClick={() => markComplete(r)}
-                            className="rounded-md bg-blue-900 text-white px-3 py-1.5 hover:bg-blue-800"
-                          >
-                            Mark Complete
-                          </button>
-                          <button
-                            onClick={() => markUncomplete(r)}
-                            className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-                          >
-                            Mark Uncomplete
-                          </button>
-                        </>
-                      )}
-
-                      {r.status === "Completed" && (
-                        <button
-                          onClick={() => endorsed()}
-                          className="rounded-md bg-blue-900 text-white px-3 py-1.5 hover:bg-blue-800"
-                        >
-                          Endorsed
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {filtered.length === 0 && (
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-gray-500">
-                    No records found.
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applicant</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Interview Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {interviews.map((interview: any) => (
+                  <tr key={interview.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-900">
+                        {interview.application?.fullName || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {interview.application?.email || ''}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {interview.application?.vacancy?.title || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        interview.status === 'Scheduled' 
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {interview.status || 'Pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {interview.interviewDate 
+                        ? new Date(interview.interviewDate).toLocaleDateString()
+                        : 'Not set'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {/* Mark Complete Button */}
+                        <button
+                          onClick={() => handleMarkComplete(interview.id, interview.applicationId)}
+                          className="px-3 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 rounded-md transition-colors flex items-center gap-1.5 font-medium"
+                          title="Mark Interview as Complete"
+                        >
+                          <CheckCircle size={14} />
+                          Mark Complete
+                        </button>
 
-      {/* Simple calendar modal (Interview + Demo) */}
-      {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          onClick={closeSchedule}
-        >
-          <div
-            className="w-full max-w-md rounded-xl border bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-semibold">Set Schedule</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Choose the Interview Date and Teaching Demo Date.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm">
-                <span className="text-gray-700">Interview Date</span>
-                <input
-                  type="date"
-                  value={interviewDate}
-                  onChange={(e) => setInterviewDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-                />
-              </label>
-
-              <label className="block text-sm">
-                <span className="text-gray-700">Teaching Demo Date</span>
-                <input
-                  type="date"
-                  value={demoDate}
-                  onChange={(e) => setDemoDate(e.target.value)}
-                  className="mt-1 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-                />
-              </label>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={closeSchedule}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveSchedule}
-                className="rounded-md bg-blue-900 text-white px-4 py-1.5 hover:bg-blue-800 disabled:opacity-50"
-                disabled={!interviewDate || !demoDate}
-              >
-                Save
-              </button>
-            </div>
+                        {/* Mark Incomplete Button */}
+                        <button
+                          onClick={() => handleMarkIncomplete(interview.id, interview.applicationId)}
+                          className="px-3 py-1.5 text-xs bg-red-600 text-white hover:bg-red-700 rounded-md transition-colors flex items-center gap-1.5 font-medium"
+                          title="Mark Interview as Incomplete"
+                        >
+                          <XCircle size={14} />
+                          Mark Incomplete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

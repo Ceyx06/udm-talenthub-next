@@ -1,7 +1,7 @@
 // src/app/hr/dashboard/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/common/PageHeader";
 import {
@@ -19,22 +19,19 @@ import {
 /* ---------------- Types ---------------- */
 type DeptKey = "CAS" | "CHS" | "CBPM" | "CCJ" | "CED" | "CCS";
 
-interface OpenRole {
+interface Application {
     id: string;
-    title: string;
-    department: DeptKey;
-    daysOpen: number;
-    postedDate: string;
-}
-
-interface TimeToFillRow {
-    department: DeptKey;
-    positionType: "Full-time" | "Part-time" | "Lecturer";
-    avgDays: number;
+    stage: string;
+    status: string;
+    createdAt: string;
+    vacancy?: {
+        title: string;
+        college: string;
+    };
 }
 
 interface PipelineStage {
-    stage: "APPLICATIONS" | "SCREENING" | "INTERVIEWS" | "OFFERS" | "ACCEPTED";
+    stage: string;
     count: number;
 }
 
@@ -44,7 +41,7 @@ interface PendingActionCounts {
     contractsToRenew: number;
 }
 
-/* ---------------- Demo data ---------------- */
+/* ---------------- Colors ---------------- */
 const COLORS = {
     tealA: "#0d9488",
     tealB: "#10b981",
@@ -54,43 +51,7 @@ const COLORS = {
     cyan: "#06b6d4",
 };
 
-const MOCK_OPEN_ROLES: OpenRole[] = [
-    { id: "v1", title: "Assistant Prof — Math", department: "CAS", daysOpen: 21, postedDate: "2025-09-30" },
-    { id: "v2", title: "Lecturer — Biology", department: "CAS", daysOpen: 13, postedDate: "2025-10-08" },
-    { id: "v3", title: "Instructor — Nursing", department: "CHS", daysOpen: 28, postedDate: "2025-09-23" },
-    { id: "v4", title: "Associate Prof — Business", department: "CBPM", daysOpen: 7, postedDate: "2025-10-14" },
-    { id: "v5", title: "Criminology Lecturer", department: "CCJ", daysOpen: 18, postedDate: "2025-10-03" },
-    { id: "v6", title: "Education Instructor", department: "CED", daysOpen: 9, postedDate: "2025-10-12" },
-    { id: "v7", title: "CompSci Lecturer", department: "CCS", daysOpen: 31, postedDate: "2025-09-20" },
-];
-
-const MOCK_TTF: TimeToFillRow[] = [
-    { department: "CAS", positionType: "Full-time", avgDays: 18 },
-    { department: "CAS", positionType: "Lecturer", avgDays: 12 },
-    { department: "CHS", positionType: "Full-time", avgDays: 19 },
-    { department: "CBPM", positionType: "Full-time", avgDays: 16 },
-    { department: "CCJ", positionType: "Lecturer", avgDays: 14 },
-    { department: "CED", positionType: "Part-time", avgDays: 10 },
-    { department: "CCS", positionType: "Lecturer", avgDays: 13 },
-];
-
-const MOCK_PIPELINE: PipelineStage[] = [
-    { stage: "APPLICATIONS", count: 420 },
-    { stage: "SCREENING", count: 335 },
-    { stage: "INTERVIEWS", count: 260 },
-    { stage: "OFFERS", count: 140 },
-    { stage: "ACCEPTED", count: 95 },
-];
-
-const MOCK_PENDING: PendingActionCounts = { toReview: 23, offersToApprove: 6, contractsToRenew: 4 };
-
-const MOCK_FILLED = {
-    month: { value: 12, target: 18 },
-    quarter: { value: 33, target: 45 },
-    year: { value: 92, target: 120 },
-};
-
-/* ---------------- Tiny components (inline) ---------------- */
+/* ---------------- Components ---------------- */
 function Panel({
     title,
     subtitle,
@@ -126,7 +87,6 @@ function Progress({ value, target, label }: { value: number; target: number; lab
     );
 }
 
-/** KPI-style stat tile (matches your top 4 cards look) */
 function StatTile({
     title,
     value,
@@ -174,62 +134,130 @@ function StatTile({
 /* ---------------- Page ---------------- */
 export default function HRDashboard() {
     const router = useRouter();
+    
+    const [applications, setApplications] = useState<Application[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // Mock data (swap for API when ready)
-    const [openRoles] = useState<OpenRole[]>(MOCK_OPEN_ROLES);
-    const [ttfRows] = useState<TimeToFillRow[]>(MOCK_TTF);
-    const [pending] = useState<PendingActionCounts>(MOCK_PENDING);
-
-    // Aggregations
-    const openByDept = useMemo(() => {
-        const byDept: Record<DeptKey, { dept: DeptKey; open: number; avgDaysOpen: number }> = {
-            CAS: { dept: "CAS", open: 0, avgDaysOpen: 0 },
-            CHS: { dept: "CHS", open: 0, avgDaysOpen: 0 },
-            CBPM: { dept: "CBPM", open: 0, avgDaysOpen: 0 },
-            CCJ: { dept: "CCJ", open: 0, avgDaysOpen: 0 },
-            CED: { dept: "CED", open: 0, avgDaysOpen: 0 },
-            CCS: { dept: "CCS", open: 0, avgDaysOpen: 0 },
+    // Fetch applications from API
+    useEffect(() => {
+        const fetchApplications = async () => {
+            try {
+                const response = await fetch('/api/application');
+                const data = await response.json();
+                
+                if (data.success) {
+                    setApplications(data.data);
+                }
+            } catch (error) {
+                console.error('Error fetching applications:', error);
+            } finally {
+                setLoading(false);
+            }
         };
-        for (const r of openRoles) {
-            byDept[r.department].open++;
-            byDept[r.department].avgDaysOpen += r.daysOpen;
-        }
-        (Object.keys(byDept) as DeptKey[]).forEach((d) => {
-            if (byDept[d].open > 0) byDept[d].avgDaysOpen = +(byDept[d].avgDaysOpen / byDept[d].open).toFixed(1);
-        });
-        return Object.values(byDept);
-    }, [openRoles]);
 
-    const ttfByDept = useMemo(() => {
-        const map: Record<DeptKey, { dept: DeptKey; avgDays: number; items: TimeToFillRow[] }> = {
-            CAS: { dept: "CAS", avgDays: 0, items: [] },
-            CHS: { dept: "CHS", avgDays: 0, items: [] },
-            CBPM: { dept: "CBPM", avgDays: 0, items: [] },
-            CCJ: { dept: "CCJ", avgDays: 0, items: [] },
-            CED: { dept: "CED", avgDays: 0, items: [] },
-            CCS: { dept: "CCS", avgDays: 0, items: [] },
+        fetchApplications();
+    }, []);
+
+    // Calculate pending actions from real data
+    const pending: PendingActionCounts = useMemo(() => {
+        return {
+            toReview: applications.filter(a => 
+                a.stage === 'APPLIED' || a.stage === 'PENDING'
+            ).length,
+            offersToApprove: applications.filter(a => 
+                a.stage === 'ENDORSED' && a.status === 'ENDORSED'
+            ).length,
+            contractsToRenew: applications.filter(a => 
+                a.stage === 'FOR_HIRING'
+            ).length,
         };
-        for (const row of ttfRows) {
-            map[row.department].items.push(row);
-            map[row.department].avgDays += row.avgDays;
-        }
-        (Object.keys(map) as DeptKey[]).forEach((d) => {
-            if (map[d].items.length) map[d].avgDays = +(map[d].avgDays / map[d].items.length).toFixed(1);
-        });
-        return Object.values(map);
-    }, [ttfRows]);
+    }, [applications]);
 
-    // chart colors
+    // Calculate pipeline stages
+    const pipelineData: PipelineStage[] = useMemo(() => {
+        const stages = ['APPLIED', 'PENDING', 'ENDORSED', 'INTERVIEW_SCHEDULED', 'EVALUATED', 'HIRED'];
+        const stageLabels: Record<string, string> = {
+            'APPLIED': 'Applications',
+            'PENDING': 'Screening',
+            'ENDORSED': 'Endorsed',
+            'INTERVIEW_SCHEDULED': 'Interviews',
+            'EVALUATED': 'Evaluated',
+            'HIRED': 'Hired'
+        };
+        
+        return stages.map(stage => ({
+            stage: stageLabels[stage] || stage,
+            originalStage: stage,
+            count: applications.filter(a => a.stage === stage).length
+        }));
+    }, [applications]);
+
+    // Calculate positions filled (hired applications)
+    const filledStats = useMemo(() => {
+        const now = new Date();
+        const thisMonth = applications.filter(a => {
+            if (a.stage !== 'HIRED') return false;
+            const created = new Date(a.createdAt);
+            return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
+        }).length;
+
+        const thisQuarter = applications.filter(a => {
+            if (a.stage !== 'HIRED') return false;
+            const created = new Date(a.createdAt);
+            const quarter = Math.floor(now.getMonth() / 3);
+            const createdQuarter = Math.floor(created.getMonth() / 3);
+            return quarter === createdQuarter && created.getFullYear() === now.getFullYear();
+        }).length;
+
+        const thisYear = applications.filter(a => {
+            if (a.stage !== 'HIRED') return false;
+            const created = new Date(a.createdAt);
+            return created.getFullYear() === now.getFullYear();
+        }).length;
+
+        return {
+            month: { value: thisMonth, target: 18 },
+            quarter: { value: thisQuarter, target: 45 },
+            year: { value: thisYear, target: 120 },
+        };
+    }, [applications]);
+
+    // Calculate applications by department
+    const applicationsByDept = useMemo(() => {
+        const depts = ['CAS', 'CHS', 'CBPM', 'CCJ', 'CED', 'CCS'];
+        
+        return depts.map(dept => {
+            const deptApps = applications.filter(a => 
+                a.vacancy?.college === dept && a.stage !== 'REJECTED'
+            );
+            
+            return {
+                dept,
+                count: deptApps.length,
+                active: deptApps.filter(a => ['APPLIED', 'PENDING', 'ENDORSED', 'INTERVIEW_SCHEDULED'].includes(a.stage)).length
+            };
+        });
+    }, [applications]);
+
+    // Chart colors
     const cellColor = (i: number) =>
         [COLORS.tealA, COLORS.tealB, COLORS.tealC, COLORS.cyan, COLORS.amber, COLORS.red][i % 6];
 
-    // Navigate helpers
-    const gotoApplicants = (stage: PipelineStage["stage"]) =>
+    // Navigation helpers
+    const gotoApplicants = (stage: string) => {
         router.push(`/hr/applicants?stage=${encodeURIComponent(stage)}`);
-    const gotoOpenVacancies = (dept: DeptKey) =>
-        router.push(`/hr/vacancies?status=OPEN&dept=${encodeURIComponent(dept)}`);
-    const gotoTTFAnalytics = (dept: DeptKey) =>
-        router.push(`/hr/analytics/ttf?dept=${encodeURIComponent(dept)}`);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading dashboard...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 space-y-6">
@@ -240,61 +268,60 @@ export default function HRDashboard() {
                 />
             </div>
 
-            {/* --- Pending Actions as KPI tiles --- */}
+            {/* Pending Actions KPI tiles */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <StatTile
                     title="Applications to Review"
                     value={pending.toReview}
                     subtitle="Awaiting screening"
                     tone="teal"
-                    onClick={() => router.push("/hr/applicants?stage=APPLICATIONS")}
+                    onClick={() => router.push("/hr/applicants?stage=PENDING")}
                 />
                 <StatTile
-                    title="Offers to Approve"
+                    title="Endorsed Applications"
                     value={pending.offersToApprove}
-                    subtitle="Pending approvals"
+                    subtitle="Ready for interview"
                     tone="sky"
-                    onClick={() => router.push("/hr/applicants?stage=OFFERS")}
+                    onClick={() => router.push("/hr/applicants?stage=ENDORSED")}
                 />
                 <StatTile
-                    title="Contracts to Renew"
+                    title="For Hiring"
                     value={pending.contractsToRenew}
-                    subtitle="Monitor queue"
+                    subtitle="Final approval stage"
                     tone="sand"
-                    onClick={() => router.push("/hr/renewals")}
+                    onClick={() => router.push("/hr/applicants?stage=FOR_HIRING")}
                 />
             </div>
 
-            {/* Row: Progress + Expanded Pipeline */}
+            {/* Progress + Pipeline */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-3">
                     <Progress
                         label="Positions Filled — This Month"
-                        value={MOCK_FILLED.month.value}
-                        target={MOCK_FILLED.month.target}
+                        value={filledStats.month.value}
+                        target={filledStats.month.target}
                     />
                     <Progress
                         label="Positions Filled — This Quarter"
-                        value={MOCK_FILLED.quarter.value}
-                        target={MOCK_FILLED.quarter.target}
+                        value={filledStats.quarter.value}
+                        target={filledStats.quarter.target}
                     />
                     <Progress
                         label="Positions Filled — This Year"
-                        value={MOCK_FILLED.year.value}
-                        target={MOCK_FILLED.year.target}
+                        value={filledStats.year.value}
+                        target={filledStats.year.target}
                     />
                 </div>
 
-                {/* Expanded across 2 columns */}
                 <div className="lg:col-span-2">
                     <Panel
                         title="Hiring Pipeline Status"
-                        subtitle="Funnel from Applications → Accepted (click a bar to open Applicants)"
+                        subtitle="Funnel from Applications → Hired (click a bar to view applicants)"
                     >
                         <div className="h-80">
                             <ResponsiveContainer>
                                 <BarChart
-                                    data={MOCK_PIPELINE}
+                                    data={pipelineData}
                                     barCategoryGap={20}
                                     margin={{ top: 10, right: 16, left: 0, bottom: 10 }}
                                 >
@@ -302,21 +329,22 @@ export default function HRDashboard() {
                                     <XAxis
                                         dataKey="stage"
                                         stroke="#64748b"
-                                        interval={0}       // <- show ALL five labels
-                                        tick={{ fontSize: 12 }}
-                                        height={40}
+                                        interval={0}
+                                        tick={{ fontSize: 11 }}
+                                        height={50}
                                         tickMargin={8}
+                                        angle={-15}
                                     />
                                     <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
                                     <Tooltip />
                                     <Legend />
                                     <Bar
                                         dataKey="count"
-                                        name="Count"
+                                        name="Applications"
                                         radius={[6, 6, 0, 0]}
-                                        onClick={(e) => gotoApplicants((e?.payload as any)?.stage)}
+                                        onClick={(e) => gotoApplicants((e?.payload as any)?.originalStage)}
                                     >
-                                        {MOCK_PIPELINE.map((_, i) => (
+                                        {pipelineData.map((_, i) => (
                                             <Cell key={i} cursor="pointer" fill={cellColor(i)} />
                                         ))}
                                     </Bar>
@@ -327,71 +355,62 @@ export default function HRDashboard() {
                 </div>
             </div>
 
-            {/* Row: Current Open Positions + Time to Fill */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Applications by Department */}
+            <div className="grid grid-cols-1 gap-4">
                 <Panel
-                    title="Current Open Positions"
-                    subtitle="Number open by department & average days open (click a bar)"
+                    title="Applications by Department"
+                    subtitle="Total applications and active candidates by college"
                 >
                     <div className="h-72">
                         <ResponsiveContainer>
-                            <BarChart data={openByDept}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-                                <XAxis dataKey="dept" stroke="#64748b" />
-                                <YAxis yAxisId="left" stroke="#64748b" />
-                                <YAxis yAxisId="right" orientation="right" stroke="#64748b" />
-                                <Tooltip />
-                                <Legend />
-                                <Bar
-                                    yAxisId="left"
-                                    dataKey="open"
-                                    name="Open Roles"
-                                    radius={[6, 6, 0, 0]}
-                                    onClick={(e) => gotoOpenVacancies((e?.payload as any)?.dept)}
-                                >
-                                    {openByDept.map((_, i) => (
-                                        <Cell key={i} cursor="pointer" fill={COLORS.tealA} />
-                                    ))}
-                                </Bar>
-                                <Bar
-                                    yAxisId="right"
-                                    dataKey="avgDaysOpen"
-                                    name="Avg Days Open"
-                                    radius={[6, 6, 0, 0]}
-                                    onClick={(e) => gotoOpenVacancies((e?.payload as any)?.dept)}
-                                >
-                                    {openByDept.map((_, i) => (
-                                        <Cell key={i} cursor="pointer" fill={COLORS.amber} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Panel>
-
-                <Panel title="Time to Fill" subtitle="Average days to fill by department (click a bar)">
-                    <div className="h-72">
-                        <ResponsiveContainer>
-                            <BarChart data={ttfByDept}>
+                            <BarChart data={applicationsByDept}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
                                 <XAxis dataKey="dept" stroke="#64748b" />
                                 <YAxis stroke="#64748b" />
                                 <Tooltip />
                                 <Legend />
                                 <Bar
-                                    dataKey="avgDays"
-                                    name="Avg Days to Fill"
+                                    dataKey="count"
+                                    name="Total Applications"
                                     radius={[6, 6, 0, 0]}
-                                    onClick={(e) => gotoTTFAnalytics((e?.payload as any)?.dept)}
-                                >
-                                    {ttfByDept.map((_, i) => (
-                                        <Cell key={i} cursor="pointer" fill={COLORS.tealB} />
-                                    ))}
-                                </Bar>
+                                    fill={COLORS.tealA}
+                                />
+                                <Bar
+                                    dataKey="active"
+                                    name="Active Candidates"
+                                    radius={[6, 6, 0, 0]}
+                                    fill={COLORS.cyan}
+                                />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </Panel>
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                    <p className="text-sm text-gray-600">Total Applications</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">{applications.length}</p>
+                </div>
+                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                    <p className="text-sm text-gray-600">Active Candidates</p>
+                    <p className="text-3xl font-bold text-blue-600 mt-1">
+                        {applications.filter(a => !['REJECTED', 'HIRED'].includes(a.stage)).length}
+                    </p>
+                </div>
+                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                    <p className="text-sm text-gray-600">Hired This Year</p>
+                    <p className="text-3xl font-bold text-green-600 mt-1">
+                        {filledStats.year.value}
+                    </p>
+                </div>
+                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                    <p className="text-sm text-gray-600">Rejected</p>
+                    <p className="text-3xl font-bold text-red-600 mt-1">
+                        {applications.filter(a => a.stage === 'REJECTED').length}
+                    </p>
+                </div>
             </div>
         </div>
     );

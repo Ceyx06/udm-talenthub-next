@@ -8,7 +8,7 @@ export async function GET() {
         // Fetch only active/open vacancies
         const vacancies = await prisma.vacancy.findMany({
             where: {
-                status: 'Active' // Changed from 'OPEN' to 'Active' to match your system
+                status: 'Active'
             },
             select: {
                 id: true,
@@ -31,6 +31,9 @@ export async function GET() {
             const now = new Date();
             const posted = new Date(vacancy.postedDate);
             const daysSincePosted = Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Check if expired (15 days or more)
+            const isExpired = daysSincePosted >= 15;
 
             return {
                 id: vacancy.id,
@@ -47,7 +50,9 @@ export async function GET() {
                     daysSincePosted === 1 ? 'Yesterday' :
                         `${daysSincePosted} days ago`,
                 status: vacancy.status,
-                link: `/apply/${vacancy.id}`
+                link: `/apply?vacancy=${vacancy.id}`,
+                isExpired: isExpired,
+                daysSincePosted: daysSincePosted
             };
         });
 

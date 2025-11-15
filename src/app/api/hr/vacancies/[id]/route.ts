@@ -1,108 +1,143 @@
+// app/api/hr/vacancies/[id]/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/hr/vacancies/[id] - Get single vacancy
+export const runtime = "nodejs";
+export const dynamic = 'force-dynamic';
+
+// GET /api/hr/vacancies/[id] — get single vacancy
 export async function GET(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log("🔍 Fetching vacancy with ID:", params.id);
+
     const vacancy = await prisma.vacancy.findUnique({
       where: { id: params.id },
-      include: { 
-        _count: { 
-          select: { applications: true } 
-        } 
-      },
+      include: {
+        _count: {
+          select: {
+            applications: true
+          }
+        }
+      }
     });
 
     if (!vacancy) {
+      console.log("❌ Vacancy not found:", params.id);
       return NextResponse.json(
-        { error: "Vacancy not found" },
+        { 
+          error: "Vacancy not found",
+          success: false 
+        },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ data: vacancy });
-  } catch (error: any) {
-    console.error("GET /api/hr/vacancies/[id]:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch vacancy" },
-      { status: 500 }
-    );
+    console.log("✅ Vacancy found:", vacancy.title);
+
+    return NextResponse.json({ 
+      data: vacancy,
+      success: true 
+    }, { status: 200 });
+
+  } catch (e: any) {
+    console.error("❌ GET /api/hr/vacancies/[id] ERROR:", e);
+    return NextResponse.json({ 
+      error: "Failed to fetch vacancy",
+      success: false,
+      details: process.env.NODE_ENV === 'development' ? e?.message : undefined
+    }, { status: 500 });
   }
 }
 
-// PUT /api/hr/vacancies/[id] - Update vacancy
+// PUT /api/hr/vacancies/[id] — update vacancy
 export async function PUT(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json();
-    const { title, college, status, requirements, description, postedDate } = body;
-
-    if (!title || !college || !status || !requirements || !description) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ 
+        error: "Invalid JSON body" 
+      }, { status: 400 });
     }
 
-    const vacancy = await prisma.vacancy.update({
+    console.log("📝 Updating vacancy:", params.id, body);
+
+    const updateData: any = {};
+    
+    if (body.title !== undefined) updateData.title = body.title.trim();
+    if (body.college !== undefined) updateData.college = body.college.trim();
+    if (body.status !== undefined) updateData.status = body.status.toString().trim().toUpperCase();
+    if (body.description !== undefined) updateData.description = body.description.trim();
+    if (body.requirements !== undefined) updateData.requirements = body.requirements.trim();
+
+    const updated = await prisma.vacancy.update({
       where: { id: params.id },
-      data: {
-        title,
-        college,
-        status,
-        requirements,
-        description,
-        postedDate: postedDate ? new Date(postedDate) : undefined,
-      },
+      data: updateData,
     });
 
-    return NextResponse.json({ data: vacancy });
-  } catch (error: any) {
-    console.error("PUT /api/hr/vacancies/[id]:", error);
-    
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: "Vacancy not found" },
-        { status: 404 }
-      );
-    }
+    console.log("✅ Vacancy updated:", updated.id);
 
-    return NextResponse.json(
-      { error: "Failed to update vacancy" },
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      data: updated,
+      success: true,
+      message: "Vacancy updated successfully"
+    }, { status: 200 });
+
+  } catch (e: any) {
+    console.error("❌ PUT /api/hr/vacancies/[id] ERROR:", e);
+    
+    if (e.code === 'P2025') {
+      return NextResponse.json({ 
+        error: "Vacancy not found" 
+      }, { status: 404 });
+    }
+    
+    return NextResponse.json({ 
+      error: e?.message || "Failed to update vacancy",
+      details: process.env.NODE_ENV === 'development' ? e?.stack : undefined
+    }, { status: 500 });
   }
 }
 
-// DELETE /api/hr/vacancies/[id] - Delete vacancy
+// DELETE /api/hr/vacancies/[id] — delete vacancy
 export async function DELETE(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log("🗑️ Deleting vacancy:", params.id);
+
     await prisma.vacancy.delete({
       where: { id: params.id },
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("DELETE /api/hr/vacancies/[id]:", error);
-    
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: "Vacancy not found" },
-        { status: 404 }
-      );
-    }
+    console.log("✅ Vacancy deleted:", params.id);
 
-    return NextResponse.json(
-      { error: "Failed to delete vacancy" },
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      success: true,
+      message: "Vacancy deleted successfully"
+    }, { status: 200 });
+
+  } catch (e: any) {
+    console.error("❌ DELETE /api/hr/vacancies/[id] ERROR:", e);
+    
+    if (e.code === 'P2025') {
+      return NextResponse.json({ 
+        error: "Vacancy not found" 
+      }, { status: 404 });
+    }
+    
+    return NextResponse.json({ 
+      error: e?.message || "Failed to delete vacancy",
+      details: process.env.NODE_ENV === 'development' ? e?.stack : undefined
+    }, { status: 500 });
   }
 }

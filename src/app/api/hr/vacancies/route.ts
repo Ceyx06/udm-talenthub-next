@@ -1,39 +1,71 @@
+// src/app/api/hr/vacancies/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const runtime = "nodejs";
+export const dynamic = 'force-dynamic';
 
-// GET /api/hr/vacancies  — list all for HR (with applications count)
+// GET /api/hr/vacancies
 export async function GET() {
   try {
+    console.log("🔍 API: Fetching vacancies...");
+    
     const rows = await prisma.vacancy.findMany({
-      include: { _count: { select: { applications: true } } },
+      include: { 
+        _count: { 
+          select: { 
+            applications: true
+          } 
+        }
+      },
       orderBy: { postedDate: "desc" },
     });
-    return NextResponse.json({ data: rows }, { status: 200 });
+
+    console.log(`✅ API: Found ${rows.length} vacancies`);
+
+    return NextResponse.json({ 
+      data: rows,
+      success: true,
+      total: rows.length 
+    }, { 
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
   } catch (e: any) {
-    console.error("GET /api/hr/vacancies:", e);
-    return NextResponse.json({ error: "Failed to fetch vacancies" }, { status: 500 });
+    console.error("❌ API ERROR:", e.message);
+    console.error("Error stack:", e.stack);
+    
+    return NextResponse.json({ 
+      error: "Failed to fetch vacancies",
+      message: e?.message,
+      code: e?.code
+    }, { 
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
   }
 }
 
-// POST /api/hr/vacancies — create
+// POST /api/hr/vacancies
 export async function POST(req: Request) {
   try {
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
+    const body = await req.json();
+    console.log("📝 API: Creating vacancy with body:", body);
 
+    // Required fields based on your schema
     const title        = body.title?.trim();
-    const college      = (body.college ?? body.department)?.trim(); // accept both
-    const status       = (body.status ?? "OPEN").toString().trim();
-    const description  = (body.description ?? "").toString().trim();
-    const requirements = (body.requirements ?? "").toString().trim();
+    const college      = body.college?.trim();
+    const status       = (body.status ?? "OPEN").toString().trim().toUpperCase();
+    const description  = body.description?.trim() || "";
+    const requirements = body.requirements?.trim() || "";
     const postedDate   = body.postedDate ? new Date(body.postedDate) : new Date();
 
+    // Validation
     if (!title || !college || !requirements) {
       return NextResponse.json(
         { error: "Missing required fields: title, college, requirements" },
@@ -41,13 +73,56 @@ export async function POST(req: Request) {
       );
     }
 
-    const created = await prisma.vacancy.create({
-      data: { title, college, status, description, requirements, postedDate },
+    console.log("📦 Data to create:", {
+      title,
+      college,
+      status,
+      description,
+      requirements,
+      postedDate
     });
 
-    return NextResponse.json({ data: created }, { status: 201 });
+    // Create vacancy - using only fields from your schema
+    const created = await prisma.vacancy.create({
+      data: { 
+        title,
+        college,
+        status,
+        description,
+        requirements,
+        postedDate,
+      },
+    });
+
+    console.log("✅ API: Created vacancy:", created.id);
+
+    return NextResponse.json({ 
+      data: created,
+      success: true,
+      message: "Vacancy created successfully"
+    }, { status: 201 });
+
   } catch (e: any) {
-    console.error("POST /api/hr/vacancies:", e);
-    return NextResponse.json({ error: e?.message || "Failed to create vacancy" }, { status: 500 });
+    console.error("❌ API POST ERROR:", e.message);
+    console.error("Error details:", e);
+    
+    // Check for Prisma-specific errors
+    if (e.code === 'P2002') {
+      return NextResponse.json({ 
+        error: "A vacancy with this information already exists"
+      }, { status: 409 });
+    }
+    
+    if (e.code?.startsWith('P')) {
+      return NextResponse.json({ 
+        error: "Database error: " + e.message,
+        details: process.env.NODE_ENV === 'development' ? e.meta : undefined
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      error: e?.message || "Failed to create vacancy",
+      details: process.env.NODE_ENV === 'development' ? e?.stack : undefined
+    }, { status: 500 });
   }
 }

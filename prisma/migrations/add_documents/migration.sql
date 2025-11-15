@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "applications" 
+ADD COLUMN IF NOT EXISTS "pdsUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "transcriptUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "trainingsUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "employmentUrl" TEXT;

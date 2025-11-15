@@ -1,14 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/hr/vacancies/:id/applications  -> list apps for a vacancy
+// GET /hr/vacancies/[id]/application -> list apps for a vacancy
 export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  
   try {
     const applications = await prisma.application.findMany({
-      where: { vacancyId: params.id },
+      where: { vacancyId: id },
       orderBy: { appliedDate: "desc" },
     });
     return NextResponse.json({ data: applications });

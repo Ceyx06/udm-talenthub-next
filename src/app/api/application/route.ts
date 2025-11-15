@@ -1,179 +1,185 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+// src/app/api/application/route.ts
 
-interface ApplicationBody {
-  vacancyId: string;
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  fullName?: string;
-  email: string;
-  contactNo: string;
-  dob?: string;
-  gender?: string;
-  civilStatus?: string;
-  presentAddress?: string;
-  permanentAddress?: string;
-  nationality?: string;
-  idType?: string;
-  idNumber?: string;
-  desiredPosition?: string;
-  department?: string;
-  employmentType?: string;
-  highestDegree?: string;
-  trainingHours?: number | string; // incoming may be number or string
-  licenseName?: string;
-  licenseNo?: string;
-  licenseExpiry?: string;
-  resumeUrl?: string;
-  coverLetter?: string;
-  experiences?: any;
-  references?: any;
-  signature?: string;
-  signedAt?: string;
-  qrCode?: string;
-}
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const body = (await req.json()) as ApplicationBody;
+    const body = await request.json();
 
-    // 1) Validate required fields
-    if (!body.vacancyId || !body.firstName || !body.lastName || !body.email || !body.contactNo) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    console.log('📝 Received application:', body);
+
+    // Validate required fields
+    const required = ['vacancyId', 'firstName', 'lastName', 'email', 'contactNo'];
+    for (const field of required) {
+      if (!body[field]) {
+        return NextResponse.json(
+          { error: `Missing required field: ${field}` },
+          { status: 400 }
+        );
+      }
     }
 
-    // 2) Check vacancy existence & status
-    const vacancy = await prisma.vacancy.findUnique({
-      where: { id: body.vacancyId },
-      select: { id: true, status: true, postedDate: true, title: true, college: true }, // only what we use
-    });
-
-    if (!vacancy) {
-      return NextResponse.json({ error: "Vacancy not found" }, { status: 404 });
-    }
-
-    // Accepts "OPEN" or "Active"
-    if (vacancy.status !== "OPEN" && vacancy.status !== "Active") {
+    // Validate files
+    if (!body.pdsUrl || !body.transcriptUrl || !body.trainingsUrl || !body.employmentUrl) {
       return NextResponse.json(
-        { error: "This vacancy is no longer accepting applications" },
+        { error: 'All required documents must be uploaded' },
         { status: 400 }
       );
     }
 
-    // 3) Enforce 15-day window
-    const postedMs = new Date(vacancy.postedDate as any).getTime();
-    const daysPassed = (Date.now() - postedMs) / (1000 * 60 * 60 * 24);
-    if (Number.isFinite(daysPassed) && daysPassed > 15) {
-      return NextResponse.json({ error: "Application period has expired" }, { status: 400 });
+    // Check if vacancy exists and is still active
+    const vacancy = await prisma.vacancy.findUnique({
+      where: { id: body.vacancyId }
+    });
+
+    if (!vacancy) {
+      return NextResponse.json(
+        { error: 'Vacancy not found' },
+        { status: 404 }
+      );
     }
 
-    // 4) Coerce trainingHours to STRING if present (schema expects String?)
-    const trainingHoursStr =
-      body.trainingHours !== undefined && body.trainingHours !== null
-        ? String(body.trainingHours)
-        : undefined; // omit when absent
+    // Check if application period is still valid (15 days)
+    const postedDate = new Date(vacancy.postedDate).getTime();
+    const now = Date.now();
+    const daysPassed = (now - postedDate) / (1000 * 60 * 60 * 24);
 
-    // 5) Required strings in schema: ensure non-null strings
-    const resumeUrl = body.resumeUrl ?? "";     // if Prisma requires String
-    const coverLetter = body.coverLetter ?? ""; // if Prisma requires String
+    if (daysPassed > 15) {
+      return NextResponse.json(
+        { error: 'This vacancy is no longer accepting applications' },
+        { status: 400 }
+      );
+    }
 
-    // 6) Build data object, omitting optional/undefined fields
-    const data = {
-      vacancyId: body.vacancyId,
-      fullName: body.fullName || `${body.firstName} ${body.lastName}`,
-      firstName: body.firstName,
-      middleName: body.middleName ?? null,
-      lastName: body.lastName,
-      email: body.email,
-      phone: body.contactNo,
+    // Check for duplicate email
+    const existingApplication = await prisma.application.findFirst({
+      where: {
+        vacancyId: body.vacancyId,
+        email: body.email
+      }
+    });
 
-      dob: body.dob ? new Date(body.dob) : null,
-      gender: body.gender ?? null,
-      civilStatus: body.civilStatus ?? null,
-      presentAddress: body.presentAddress ?? null,
-      permanentAddress: body.permanentAddress ?? null,
-      nationality: body.nationality ?? null,
-      idType: body.idType ?? null,
-      idNumber: body.idNumber ?? null,
+    if (existingApplication) {
+      return NextResponse.json(
+        { error: 'You have already applied for this position' },
+        { status: 409 }
+      );
+    }
 
-      desiredPosition: body.desiredPosition || vacancy.title,
-      department: body.department || (vacancy.college as string), // map college -> department field
-      employmentType: body.employmentType || "Full-time",
-      highestDegree: body.highestDegree ?? null,
+    // Generate QR code
+    const qrCode = `APP-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`.toUpperCase();
 
-      ...(trainingHoursStr !== undefined ? { trainingHours: trainingHoursStr } : {}),
+    // Create application
+    const application = await prisma.application.create({
+      data: {
+        vacancyId: body.vacancyId,
+        
+        // Required fields
+        fullName: body.fullName || `${body.firstName} ${body.middleName || ''} ${body.lastName}`.trim(),
+        email: body.email,
+        phone: body.contactNo,
+        coverLetter: body.coverLetter || '',
+        resumeUrl: body.resumeUrl || body.pdsUrl,
+        
+        // Personal info
+        firstName: body.firstName,
+        middleName: body.middleName,
+        lastName: body.lastName,
+        contactNo: body.contactNo,
+        dob: body.dob ? new Date(body.dob) : null,
+        gender: body.gender,
+        civilStatus: body.civilStatus,
+        presentAddress: body.presentAddress,
+        permanentAddress: body.permanentAddress,
+        nationality: body.nationality,
+        idType: body.idType,
+        idNumber: body.idNumber,
+        
+        // Position
+        desiredPosition: body.desiredPosition || vacancy.title,
+        department: body.department || vacancy.college,
+        employmentType: body.employmentType,
+        
+        // Education
+        highestDegree: body.highestDegree,
+        trainingHours: body.trainingHours ? parseInt(body.trainingHours) : null,
+        licenseName: body.licenseName,
+        licenseNo: body.licenseNo,
+        licenseExpiry: body.licenseExpiry ? new Date(body.licenseExpiry) : null,
+        
+        // Documents
+        pdsUrl: body.pdsUrl,
+        transcriptUrl: body.transcriptUrl,
+        trainingsUrl: body.trainingsUrl,
+        employmentUrl: body.employmentUrl,
+        
+        // Experience & References as JSON
+        experiences: body.experiences || [],
+        references: body.references || [],
+        
+        // Status
+        status: 'PENDING',
+        stage: 'APPLIED',
+        qrCode: qrCode,
+        appliedDate: new Date(),
+      }
+    });
 
-      licenseName: body.licenseName ?? null,
-      licenseNo: body.licenseNo ?? null,
-      licenseExpiry: body.licenseExpiry ? new Date(body.licenseExpiry) : null,
+    console.log('✅ Application created:', application.id);
 
-      // required strings in schema – send empty string if not provided
-      resumeUrl,
-      coverLetter,
+    return NextResponse.json({
+      success: true,
+      message: 'Application submitted successfully',
+      applicationId: application.id,
+      qrCode: qrCode,
+      data: application
+    }, { status: 201 });
 
-      experiences: body.experiences ?? null,
-      references: body.references ?? null,
-
-      signature: body.signature ?? null,
-      signedAt: body.signedAt ? new Date(body.signedAt) : new Date(),
-      qrCode: body.qrCode || `UDM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-      status: "PENDING" as const,
-    };
-
-    const application = await prisma.application.create({ data });
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Application submitted successfully",
-        applicationId: application.id,
-        qrCode: application.qrCode,
-      },
-      { status: 201 }
-    );
   } catch (error: any) {
-    console.error("Application submission error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to submit application. Please try again.",
-        details: process.env.NODE_ENV === "development" ? error?.message : undefined,
-      },
-      { status: 500 }
-    );
+    console.error('❌ Application submission error:', error);
+    
+    return NextResponse.json({
+      error: 'Failed to submit application',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }, { status: 500 });
   }
 }
 
-export async function GET(req: Request) {
+// GET to retrieve applications (optional)
+export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const vacancyId = searchParams.get("vacancyId") || undefined;
-    const status = searchParams.get("status") || undefined;
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get('email');
+    const vacancyId = searchParams.get('vacancyId');
+
+    const where: any = {};
+    if (email) where.email = email;
+    if (vacancyId) where.vacancyId = vacancyId;
 
     const applications = await prisma.application.findMany({
-      where: {
-        ...(vacancyId ? { vacancyId } : {}),
-        ...(status ? { status } : {}),
-      },
+      where,
       include: {
         vacancy: {
           select: {
             title: true,
             college: true,
-            // department: true, // ❌ remove; doesn't exist on Vacancy
-          },
-        },
+          }
+        }
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { appliedDate: 'desc' }
     });
 
     return NextResponse.json({
       success: true,
-      data: applications,
-      count: applications.length,
+      data: applications
     });
-  } catch (error) {
-    console.error("Error fetching applications:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch applications" }, { status: 500 });
+
+  } catch (error: any) {
+    console.error('❌ Get applications error:', error);
+    return NextResponse.json({
+      error: 'Failed to fetch applications'
+    }, { status: 500 });
   }
 }

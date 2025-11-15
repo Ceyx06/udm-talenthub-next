@@ -2,13 +2,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import axios from "axios";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 export default function HRLoginPage() {
   const router = useRouter();
-  const search = useSearchParams();
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -20,55 +18,76 @@ export default function HRLoginPage() {
     setBusy(true);
 
     try {
-      const response = await axios.post("/api/auth", {
+      console.log('Attempting login with NextAuth...');
+      
+      const result = await signIn('credentials', {
         email: username,
         password: password,
+        redirect: false,
       });
 
-      const user = response.data.user;
+      console.log('Login result:', result);
 
-      // Store user data (you can use localStorage, cookies, or session)
-      localStorage.setItem("user", JSON.stringify(user));
-
-      // Role-based redirect
-      let redirectTo;
-      const role = user.role?.toLowerCase();
-
-      if (role === "hr") {
-        redirectTo = "/hr/dashboard";
-      } else if (role === "dean") {
-        redirectTo = "/dean/dashboard";
-      } else {
-        // Default dashboard for other roles
-        redirectTo = "/hr/dashboard";
+      if (result?.error) {
+        setErr('Invalid username or password');
+        setBusy(false);
+        return;
       }
 
-      router.push(redirectTo);
+      if (result?.ok) {
+        console.log('Login successful!');
+        
+        // Get session to check role
+        const response = await fetch('/api/auth/session');
+        const session = await response.json();
+        
+        console.log('Session data:', session);
+        
+        // Store user in localStorage for your custom auth checks
+        if (session?.user) {
+          const userData = {
+            id: session.user.id,
+            name: session.user.name,
+            email: session.user.email,
+            role: session.user.role,
+          };
+          
+          localStorage.setItem('user', JSON.stringify(userData));
+          console.log('Stored in localStorage:', userData);
+        }
+        
+        // Role-based redirect
+        const role = session?.user?.role?.toUpperCase();
+        let redirectTo = "/hr/dashboard";
+
+        if (role === "HR") {
+          redirectTo = "/hr/dashboard";
+        } else if (role === "DEAN") {
+          redirectTo = "/dean/dashboard";
+        }
+
+        console.log('Redirecting to:', redirectTo);
+        router.push(redirectTo);
+        router.refresh();
+      }
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        setErr(error.response.data.error || "Login failed");
-      } else {
-        setErr("An error occurred. Please try again.");
-      }
+      console.error('Login error:', error);
+      setErr("An error occurred. Please try again.");
       setBusy(false);
     }
   };
 
   return (
     <div className="relative min-h-screen">
-      {/* Background image */}
       <div
         className="absolute inset-0 bg-center bg-cover"
         style={{ backgroundImage: "url('/bg-udm.jpg')" }}
         aria-hidden
       />
-      {/* Dark overlay for contrast */}
       <div className="absolute inset-0 bg-black/30" aria-hidden />
 
-      {/* Centered glass card */}
       <div className="relative z-10 flex min-h-screen items-center justify-center">
         <div className="w-[520px] max-w-[92vw] rounded-2xl bg-white/65 backdrop-blur-md shadow-2xl border border-black/10">
-          {/* Header row: seal + centered titles */}
           <div className="flex items-center gap-3 px-8 pt-6">
             <img
               src="/logo-udm.png"
@@ -85,9 +104,7 @@ export default function HRLoginPage() {
             </div>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="px-10 pb-8 pt-4">
-            {/* Username */}
             <div className="mb-3">
               <div className="inline-block rounded-md bg-black/10 px-3 py-1 text-sm">
                 Username
@@ -102,7 +119,6 @@ export default function HRLoginPage() {
               />
             </div>
 
-            {/* Password */}
             <div className="mb-3">
               <div className="inline-block rounded-md bg-black/10 px-3 py-1 text-sm">
                 Password
@@ -123,7 +139,6 @@ export default function HRLoginPage() {
               </div>
             )}
 
-            {/* Slim centered green button */}
             <div className="flex justify-center">
               <button
                 type="submit"
@@ -134,6 +149,10 @@ export default function HRLoginPage() {
               </button>
             </div>
           </form>
+
+          <div className="px-10 pb-4 text-center text-xs text-gray-700">
+            <p>Test: hr@udm.edu.ph / password</p>
+          </div>
         </div>
       </div>
     </div>

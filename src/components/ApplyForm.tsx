@@ -1,467 +1,650 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, CheckCircle } from 'lucide-react';
 
 interface Job {
-    id: string;
-    title: string;
-    college: string;
-    status: string;
-    requirements?: string;
-    description?: string;
-    postedDate: Date;
+  id: string;
+  title: string;
+  college: string;
+  description?: string;
+  requirements?: string;
 }
 
 interface ApplyFormProps {
-    job: Job;
+  job: Job;
+}
+
+interface Experience {
+  employer: string;
+  jobTitle: string;
+  from: string;
+  to: string;
+  responsibilities: string;
 }
 
 export default function ApplyForm({ job }: ApplyFormProps) {
-    const router = useRouter();
-    const [submitting, setSubmitting] = useState(false);
-    const [success, setSuccess] = useState(false);
-    const [error, setError] = useState('');
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const [formData, setFormData] = useState({
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    contactNo: '',
+    dob: '',
+    gender: '',
+    civilStatus: '',
+    presentAddress: '',
+    permanentAddress: '',
+    nationality: '',
+    idType: '',
+    idNumber: '',
+    desiredPosition: job.title,
+    department: job.college,
+    employmentType: 'Full-time',
+    highestDegree: '',
+    trainingHours: '',
+    licenseName: '',
+    licenseNo: '',
+    licenseExpiry: '',
+    coverLetter: '',
+  });
 
-    // Form state
-    const [formData, setFormData] = useState({
-        firstName: '',
-        middleName: '',
-        lastName: '',
-        dob: '',
-        gender: '',
-        civilStatus: 'Single',
-        contactNo: '',
-        email: '',
-        presentAddress: '',
-        permanentAddress: '',
-        nationality: '',
-        idType: '',
-        idNumber: '',
-        desiredPosition: job.title || '',
-        department: job.college || '',
-        employmentType: 'Full-time',
-        highestDegree: '',
-        trainingHours: '',
-        licenseName: '',
-        licenseNo: '',
-        licenseExpiry: '',
-        signature: '',
-        signedAt: new Date().toISOString().split('T')[0],
-        qrCode: `UDM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-        message: ''
+  const [files, setFiles] = useState({
+    pds: null as File | null,
+    transcript: null as File | null,
+    trainings: null as File | null,
+    employment: null as File | null,
+  });
+
+  const [experiences, setExperiences] = useState<Experience[]>([
+    { employer: '', jobTitle: '', from: '', to: '', responsibilities: '' }
+  ]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldName: keyof typeof files) => {
+    const file = e.target.files?.[0] || null;
+    
+    if (file) {
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      if (!allowedTypes.includes(file.type)) {
+        alert(`Invalid file type for ${fieldName}. Only PDF, JPG, and PNG are allowed.`);
+        return;
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`File too large. Maximum size is 5MB.`);
+        return;
+      }
+    }
+    
+    setFiles(prev => ({
+      ...prev,
+      [fieldName]: file
+    }));
+  };
+
+  const addExperience = () => {
+    setExperiences([...experiences, { employer: '', jobTitle: '', from: '', to: '', responsibilities: '' }]);
+  };
+
+  const removeExperience = (index: number) => {
+    if (experiences.length > 1) {
+      setExperiences(experiences.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateExperience = (index: number, field: keyof Experience, value: string) => {
+    const updated = [...experiences];
+    updated[index] = { ...updated[index], [field]: value };
+    setExperiences(updated);
+  };
+
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+
+  // Validate files
+  if (!files.pds || !files.transcript || !files.trainings || !files.employment) {
+    setError('All required documents must be uploaded');
+    setLoading(false);
+    return;
+  }
+
+  try {
+    // Upload files first
+    const uploadFile = async (file: File, fieldName: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to upload ${fieldName}`);
+      }
+      
+      const result = await response.json();
+      return result.url;
+    };
+
+    setError('Uploading documents...');
+    
+    const [pdsUrl, transcriptUrl, trainingsUrl, employmentUrl] = await Promise.all([
+      uploadFile(files.pds, 'PDS'),
+      uploadFile(files.transcript, 'Transcript'),
+      uploadFile(files.trainings, 'Trainings'),
+      uploadFile(files.employment, 'Employment'),
+    ]);
+
+    setError('Submitting application...');
+
+    // Prepare data with file URLs
+    const submitData = {
+      vacancyId: job.id,
+      firstName: formData.firstName,
+      middleName: formData.middleName,
+      lastName: formData.lastName,
+      fullName: `${formData.firstName} ${formData.middleName} ${formData.lastName}`.trim(),
+      email: formData.email,
+      contactNo: formData.contactNo,
+      dob: formData.dob || undefined,
+      gender: formData.gender || undefined,
+      civilStatus: formData.civilStatus || undefined,
+      presentAddress: formData.presentAddress || undefined,
+      permanentAddress: formData.permanentAddress || undefined,
+      nationality: formData.nationality || undefined,
+      desiredPosition: formData.desiredPosition,
+      department: formData.department,
+      employmentType: formData.employmentType,
+      highestDegree: formData.highestDegree || undefined,
+      trainingHours: formData.trainingHours ? Number(formData.trainingHours) : undefined,
+      licenseName: formData.licenseName || undefined,
+      licenseNo: formData.licenseNo || undefined,
+      licenseExpiry: formData.licenseExpiry || undefined,
+      coverLetter: formData.coverLetter || undefined,
+      experiences: experiences,
+      references: [],
+      // File URLs
+      pdsUrl,
+      transcriptUrl,
+      trainingsUrl,
+      employmentUrl,
+      resumeUrl: pdsUrl, // Use PDS as resume
+    };
+
+    const response = await fetch('/api/application', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submitData),
     });
 
-    const [experiences, setExperiences] = useState([
-        { employer: '', title: '', from: '', to: '', desc: '' }
-    ]);
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.error || 'Failed to submit application');
+    }
 
-    const [references, setReferences] = useState([
-        { name: '', relation: '', company: '', email: '', contact: '' }
-    ]);
+    const result = await response.json();
+    
+    alert(`Application submitted successfully! Your QR Code: ${result.qrCode}`);
+    router.push('/jobs');
+    
+  } catch (err: any) {
+    console.error('Submission error:', err);
+    setError(err.message || 'Failed to submit application');
+  } finally {
+    setLoading(false);
+  }
+};
 
-    const [consent, setConsent] = useState(false);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    };
-
-    const addExperience = () => {
-        setExperiences([...experiences, { employer: '', title: '', from: '', to: '', desc: '' }]);
-    };
-
-    const removeExperience = (index: number) => {
-        setExperiences(experiences.filter((_, i) => i !== index));
-    };
-
-    const updateExperience = (index: number, field: string, value: string) => {
-        const updated = [...experiences];
-        updated[index] = { ...updated[index], [field]: value };
-        setExperiences(updated);
-    };
-
-    const addReference = () => {
-        setReferences([...references, { name: '', relation: '', company: '', email: '', contact: '' }]);
-    };
-
-    const removeReference = (index: number) => {
-        setReferences(references.filter((_, i) => i !== index));
-    };
-
-    const updateReference = (index: number, field: string, value: string) => {
-        const updated = [...references];
-        updated[index] = { ...updated[index], [field]: value };
-        setReferences(updated);
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!consent) {
-            setError('Please provide your consent to submit the application.');
-            return;
-        }
-
-        setSubmitting(true);
-        setError('');
-
-        const payload = {
-            vacancyId: job.id,
-            ...formData,
-            fullName: `${formData.firstName} ${formData.middleName} ${formData.lastName}`.trim(),
-            phone: formData.contactNo,
-            resumeUrl: '',
-            coverLetter: formData.message,
-            experiences: JSON.stringify(experiences.filter(e => e.employer || e.title)),
-            references: JSON.stringify(references.filter(r => r.name))
-        };
-
-        try {
-            const response = await fetch('/api/applications', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setSuccess(true);
-                setTimeout(() => router.push('/hr/applicants'), 2000);
-            } else {
-                setError(data.error || 'Failed to submit application');
-            }
-        } catch (err) {
-            console.error('Submit error:', err);
-            setError('Network error. Please try again.');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
-            <div className="max-w-4xl mx-auto px-4">
-                <button
-                    onClick={() => router.push('/jobs')}
-                    className="mb-6 flex items-center gap-2 text-gray-700 hover:text-gray-900 font-semibold bg-white px-4 py-2 rounded-lg shadow-sm"
-                >
-                    <ArrowLeft className="w-4 h-4" /> Back to Vacancies
-                </button>
-
-                <div className="bg-white rounded-lg shadow-lg p-8">
-                    {success ? (
-                        <div className="text-center py-12">
-                            <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Application Submitted!</h2>
-                            <p className="text-gray-600 mb-2">We will review your application and contact you via email.</p>
-                            <p className="text-sm text-gray-500">Redirecting to applicants page...</p>
-                        </div>
-                    ) : (
-                        <>
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">Apply: {job.title}</h1>
-                            <div className="flex gap-2 mb-6">
-                                <span className="px-3 py-1 bg-gray-100 border border-gray-300 rounded-full text-sm font-semibold text-gray-700">
-                                    {job.college}
-                                </span>
-                                {job.status === 'OPEN' && (
-                                    <span className="px-3 py-1 bg-green-100 border border-green-300 rounded-full text-sm font-semibold text-green-800">
-                                        Active
-                                    </span>
-                                )}
-                            </div>
-
-                            {error && (
-                                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-                                    {error}
-                                </div>
-                            )}
-
-                            <form onSubmit={handleSubmit} className="space-y-8">
-                                {/* Personal Details - Section 1 */}
-                                <section>
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">1) Personal Details</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Last Name <span className="text-red-600">*</span></label>
-                                            <input name="lastName" required value={formData.lastName} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">First Name <span className="text-red-600">*</span></label>
-                                            <input name="firstName" required value={formData.firstName} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Middle Name</label>
-                                            <input name="middleName" value={formData.middleName} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Date of Birth <span className="text-red-600">*</span></label>
-                                            <input type="date" name="dob" required value={formData.dob} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Gender <span className="text-red-600">*</span></label>
-                                            <select name="gender" required value={formData.gender} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                <option value="">— Select —</option>
-                                                <option>Male</option>
-                                                <option>Female</option>
-                                                <option>Prefer not to say</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Civil Status</label>
-                                            <select name="civilStatus" value={formData.civilStatus} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                <option>Single</option>
-                                                <option>Married</option>
-                                                <option>Separated</option>
-                                                <option>Widowed</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Contact Number <span className="text-red-600">*</span></label>
-                                            <input name="contactNo" required value={formData.contactNo} onChange={handleChange} placeholder="+63 9xx xxx xxxx" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Email Address <span className="text-red-600">*</span></label>
-                                            <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Present Address <span className="text-red-600">*</span></label>
-                                            <input name="presentAddress" required value={formData.presentAddress} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Permanent Address</label>
-                                            <input name="permanentAddress" value={formData.permanentAddress} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Nationality</label>
-                                            <input name="nationality" value={formData.nationality} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Valid ID Type</label>
-                                            <select name="idType" value={formData.idType} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                <option value="">— Select —</option>
-                                                <option>PhilID</option>
-                                                <option>Passport</option>
-                                                <option>Driver's License</option>
-                                                <option>PRC</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">ID Number</label>
-                                            <input name="idNumber" value={formData.idNumber} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* Position Applied For - Section 2 */}
-                                <section className="border-t border-gray-200 pt-6">
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">2) Position Applied For</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Desired Position <span className="text-red-600">*</span></label>
-                                            <input name="desiredPosition" required value={formData.desiredPosition} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Department/College <span className="text-red-600">*</span></label>
-                                            <input name="department" required value={formData.department} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Employment Type</label>
-                                            <select name="employmentType" value={formData.employmentType} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                                <option>Full-time</option>
-                                                <option>Part-time</option>
-                                                <option>Contractual</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* Education - Section 3 */}
-                                <section className="border-t border-gray-200 pt-6">
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">3) Education</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Highest Degree</label>
-                                            <input name="highestDegree" value={formData.highestDegree} onChange={handleChange} placeholder="e.g., Master's in Teaching" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Training Hours <span className="text-red-600">*</span></label>
-                                            <input name="trainingHours" required value={formData.trainingHours} onChange={handleChange} placeholder="At least 10" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div></div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">Professional License</label>
-                                            <input name="licenseName" value={formData.licenseName} onChange={handleChange} placeholder="e.g., LPT" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">License No.</label>
-                                            <input name="licenseNo" value={formData.licenseNo} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1">License Expiry</label>
-                                            <input type="date" name="licenseExpiry" value={formData.licenseExpiry} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* Work Experience - Section 4 */}
-                                <section className="border-t border-gray-200 pt-6">
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">4) Work Experience</h2>
-                                    {experiences.map((exp, idx) => (
-                                        <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Employer <span className="text-red-600">*</span></label>
-                                                    <input required value={exp.employer} onChange={(e) => updateExperience(idx, 'employer', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Job Title <span className="text-red-600">*</span></label>
-                                                    <input required value={exp.title} onChange={(e) => updateExperience(idx, 'title', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">From <span className="text-red-600">*</span></label>
-                                                    <input type="date" required value={exp.from} onChange={(e) => updateExperience(idx, 'from', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">To <span className="text-red-600">*</span></label>
-                                                    <input type="date" required value={exp.to} onChange={(e) => updateExperience(idx, 'to', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                            </div>
-                                            <div className="mt-4">
-                                                <label className="block text-sm font-semibold mb-1">Key Responsibilities</label>
-                                                <textarea value={exp.desc} onChange={(e) => updateExperience(idx, 'desc', e.target.value)} rows={2} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                            </div>
-                                            {experiences.length > 1 && (
-                                                <button type="button" onClick={() => removeExperience(idx)} className="mt-2 flex items-center gap-2 text-red-600 hover:text-red-800">
-                                                    <Trash2 className="w-4 h-4" /> Remove
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    <button type="button" onClick={addExperience} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold">
-                                        <Plus className="w-4 h-4" /> Add Experience
-                                    </button>
-                                </section>
-
-                                {/* Character References - Section 5 */}
-                                <section className="border-t border-gray-200 pt-6">
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">5) Character References</h2>
-                                    {references.map((ref, idx) => (
-                                        <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Name <span className="text-red-600">*</span></label>
-                                                    <input required value={ref.name} onChange={(e) => updateReference(idx, 'name', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Position/Relation <span className="text-red-600">*</span></label>
-                                                    <input required value={ref.relation} onChange={(e) => updateReference(idx, 'relation', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Company/Organization</label>
-                                                    <input value={ref.company} onChange={(e) => updateReference(idx, 'company', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Email</label>
-                                                    <input type="email" value={ref.email} onChange={(e) => updateReference(idx, 'email', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold mb-1">Contact Number</label>
-                                                    <input value={ref.contact} onChange={(e) => updateReference(idx, 'contact', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                                                </div>
-                                            </div>
-                                            {references.length > 1 && (
-                                                <button type="button" onClick={() => removeReference(idx)} className="mt-2 flex items-center gap-2 text-red-600 hover:text-red-800">
-                                                    <Trash2 className="w-4 h-4" /> Remove
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    <button type="button" onClick={addReference} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold">
-                                        <Plus className="w-4 h-4" /> Add Reference
-                                    </button>
-                                </section>
-
-                                {/* Additional Message - Section 6 */}
-                                <section className="border-t border-gray-200 pt-6">
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">6) Additional Message (Optional)</h2>
-                                    <div>
-                                        <label className="block text-sm font-semibold mb-1">Cover Letter / Message to Hiring Manager</label>
-                                        <textarea
-                                            name="message"
-                                            value={formData.message}
-                                            onChange={handleChange}
-                                            rows={5}
-                                            placeholder="Tell us why you're interested in this position and what makes you a great fit..."
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                </section>
-
-                                {/* Consent and Submit */}
-                                <section className="border-t border-gray-200 pt-6">
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                                        <label className="flex items-start gap-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={consent}
-                                                onChange={(e) => setConsent(e.target.checked)}
-                                                className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                                            />
-                                            <span className="text-sm text-gray-700">
-                                                <strong>I hereby declare</strong> that the information provided above is true and correct to the best of my knowledge.
-                                                I understand that any false information may result in the rejection of my application or termination of employment.
-                                                I consent to the processing of my personal data in accordance with the Data Privacy Act of 2012.
-                                            </span>
-                                        </label>
-                                    </div>
-
-                                    <div className="flex gap-4">
-                                        <button
-                                            type="submit"
-                                            disabled={submitting || !consent}
-                                            className="flex-1 px-6 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold transition-colors flex items-center justify-center gap-2"
-                                        >
-                                            {submitting ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                                    Submitting...
-                                                </>
-                                            ) : (
-                                                'Submit Application'
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => router.push('/jobs')}
-                                            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </section>
-                            </form>
-                        </>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Apply for {job.title}</h1>
+          <p className="text-gray-600">{job.college}</p>
         </div>
-    );
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Personal Information */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Personal Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  First Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="firstName"
+                  required
+                  value={formData.firstName}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label>
+                <input
+                  type="text"
+                  name="middleName"
+                  value={formData.middleName}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Last Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="lastName"
+                  required
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Contact Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  name="contactNo"
+                  required
+                  value={formData.contactNo}
+                  onChange={handleInputChange}
+                  placeholder="+63"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                <input
+                  type="date"
+                  name="dob"
+                  value={formData.dob}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Civil Status</label>
+                <select
+                  name="civilStatus"
+                  value={formData.civilStatus}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select Status</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Widowed">Widowed</option>
+                  <option value="Separated">Separated</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
+                <input
+                  type="text"
+                  name="nationality"
+                  value={formData.nationality}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Filipino"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Address */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Address Information</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Present Address</label>
+                <input
+                  type="text"
+                  name="presentAddress"
+                  value={formData.presentAddress}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Permanent Address</label>
+                <input
+                  type="text"
+                  name="permanentAddress"
+                  value={formData.permanentAddress}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Education & Qualifications */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Education & Qualifications</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Highest Degree</label>
+                <input
+                  type="text"
+                  name="highestDegree"
+                  value={formData.highestDegree}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Bachelor's Degree"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Training Hours</label>
+                <input
+                  type="number"
+                  name="trainingHours"
+                  value={formData.trainingHours}
+                  onChange={handleInputChange}
+                  placeholder="Total hours"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">License Name</label>
+                <input
+                  type="text"
+                  name="licenseName"
+                  value={formData.licenseName}
+                  onChange={handleInputChange}
+                  placeholder="e.g., PRC License"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">License Number</label>
+                <input
+                  type="text"
+                  name="licenseNo"
+                  value={formData.licenseNo}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">License Expiry</label>
+                <input
+                  type="date"
+                  name="licenseExpiry"
+                  value={formData.licenseExpiry}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Work Experience */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Work Experience</h2>
+            {experiences.map((exp, index) => (
+              <div key={index} className="mb-6 p-6 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">{index + 1}) Work Experience</h3>
+                  {experiences.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeExperience(index)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Employer <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={exp.employer}
+                      onChange={(e) => updateExperience(index, 'employer', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Job Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={exp.jobTitle}
+                      onChange={(e) => updateExperience(index, 'jobTitle', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      From <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={exp.from}
+                      onChange={(e) => updateExperience(index, 'from', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      To <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={exp.to}
+                      onChange={(e) => updateExperience(index, 'to', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Key Responsibilities</label>
+                  <textarea
+                    rows={4}
+                    value={exp.responsibilities}
+                    onChange={(e) => updateExperience(index, 'responsibilities', e.target.value)}
+                    placeholder="Describe your key responsibilities and achievements..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  />
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addExperience}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <span className="text-xl">+</span>
+              <span>Add Experience</span>
+            </button>
+          </section>
+
+          {/* Required Documents */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Required Documents</h2>
+            <p className="text-sm text-gray-600 mb-4">Please upload the following required documents (PDF, JPG, or PNG format, max 5MB each)</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  1. Fully accomplished Personal Data Sheet / Curriculum Vitae <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleFileChange(e, 'pds')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.pds && (
+                  <p className="mt-1 text-sm text-green-600">✓ {files.pds.name}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  2. Certified True Copy of Transcript of Records <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleFileChange(e, 'transcript')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.transcript && (
+                  <p className="mt-1 text-sm text-green-600">✓ {files.transcript.name}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  3. Certified True Copy of Certificate of Trainings Attended <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleFileChange(e, 'trainings')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.trainings && (
+                  <p className="mt-1 text-sm text-green-600">✓ {files.trainings.name}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  4. Employment Certification <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => handleFileChange(e, 'employment')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.employment && (
+                  <p className="mt-1 text-sm text-green-600">✓ {files.employment.name}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Cover Letter */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Cover Letter</h2>
+            <textarea
+              name="coverLetter"
+              rows={6}
+              value={formData.coverLetter}
+              onChange={handleInputChange}
+              placeholder="Tell us why you're interested in this position and what makes you a great fit..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </section>
+
+          {/* Submit Buttons */}
+          <div className="flex gap-4 pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Submitting...' : 'Submit Application'}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/jobs')}
+              disabled={loading}
+              className="px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
