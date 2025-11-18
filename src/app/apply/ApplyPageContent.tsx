@@ -2,8 +2,9 @@
 import { Suspense } from 'react';
 import ApplyPageContent from './ApplyPageContent';
 
-// Force dynamic rendering
+// Disable static generation completely
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default function ApplyPage() {
   return (
