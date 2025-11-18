@@ -42,38 +42,49 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/hr/') || 
       request.nextUrl.pathname.startsWith('/dean/')) {
     
-    // Get the token from NextAuth
+    // Get the token from NextAuth - Fix the secret usage
     const token = await getToken({ 
       req: request,
-      secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET
+      secret: process.env.NEXTAUTH_SECRET,
+      // Add secureCookie option based on environment
+      secureCookie: process.env.NODE_ENV === 'production',
     });
+
+    console.log('Middleware - Token:', token); // Debug log
 
     // If no token, redirect to login
     if (!token) {
+      console.log('Middleware - No token found, redirecting to login');
       return NextResponse.redirect(new URL('/login', request.url));
     }
 
     // Check if user has the right role
-    const userRole = token.role as string;
+    const userRole = (token.role as string)?.toUpperCase();
+    console.log('Middleware - User role:', userRole); // Debug log
     
     if (request.nextUrl.pathname.startsWith('/hr/')) {
       if (userRole !== 'HR') {
+        console.log('Middleware - Wrong role for HR route');
         return NextResponse.redirect(new URL('/access-denied', request.url));
       }
     }
     
     if (request.nextUrl.pathname.startsWith('/dean/')) {
       if (userRole !== 'DEAN') {
+        console.log('Middleware - Wrong role for DEAN route');
         return NextResponse.redirect(new URL('/access-denied', request.url));
       }
     }
+
+    console.log('Middleware - Auth successful, allowing access');
   }
 
   // Handle authentication for applicant routes
   if (request.nextUrl.pathname.startsWith('/applicant/')) {
     const token = await getToken({ 
       req: request,
-      secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET
+      secret: process.env.NEXTAUTH_SECRET,
+      secureCookie: process.env.NODE_ENV === 'production',
     });
 
     if (!token) {

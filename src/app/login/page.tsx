@@ -150,9 +150,7 @@ export default function HRLoginPage() {
             </div>
           </form>
 
-          <div className="px-10 pb-4 text-center text-xs text-gray-700">
-            <p>Test: hr@udm.edu.ph / password</p>
-          </div>
+         
         </div>
       </div>
     </div>

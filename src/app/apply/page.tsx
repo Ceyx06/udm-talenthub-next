@@ -21,7 +21,7 @@ interface Experience {
   responsibilities: string;
 }
 
-export default function ApplyPage() {
+export default function ApplyPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const vacancyId = searchParams.get('vacancy');
