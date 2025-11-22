@@ -199,6 +199,36 @@ model Interview {
   @@map("interviews")
 }
 
+model Contract {
+  id              String      @id @default(cuid())
+  contractNo      String      @unique
+  evaluationId    String?     @unique
+  evaluation      Evaluation? @relation(fields: [evaluationId], references: [id])
+  
+  facultyName     String
+  email           String
+  phone           String?
+  college         String
+  jobTitle        String
+  position        String      // The rank from evaluation
+  employmentType  String      @default("Full-time") // Full-time, Part-time
+  
+  ratePerHour     Float
+  startDate       DateTime
+  endDate         DateTime
+  
+  status          String      @default("Active") // Active, Expired, Pending Renewal
+  
+  createdBy       String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  @@index([status])
+  @@index([college])
+  @@index([endDate])
+  @@map("contracts")
+}
+
 enum UserRole {
   ADMIN
   HR
@@ -219,32 +249,40 @@ enum DeanRecommendation {
 }
 
 model Evaluation {
-  id            String   @id @default(cuid())
-  applicationId String   @unique
-  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id                    String      @id @default(cuid())
+  applicationId         String      @unique
+  application           Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   
   // Scores by category
-  educationalScore       Float @default(0)
-  experienceScore        Float @default(0)
-  professionalDevScore   Float @default(0)
-  technologicalScore     Float @default(0)
+  educationalScore      Float       @default(0)
+  experienceScore       Float       @default(0)
+  professionalDevScore  Float       @default(0)
+  technologicalScore    Float       @default(0)
   
   // Total and ranking
-  totalScore            Float @default(0)
-  rank                  String? // e.g., "Lecturer I", "Assistant Professor"
-  ratePerHour           Float?  // Calculated based on rank
+  totalScore            Float       @default(0)
+  rank                  String?
+  ratePerHour           Float?
   
   // Detailed scores (stored as JSON)
   detailedScores        Json?
   
   // Evaluation metadata
   evaluatedBy           String
-  evaluatedAt           DateTime @default(now())
+  evaluatedAt           DateTime    @default(now())
   remarks               String?
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Contract Queue fields
+  contractStatus        String?     @default("pending")
+  contractActionDate    DateTime?
+  
+  // Contract relation
+  contract              Contract?
+  
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   @@index([applicationId])
+  @@index([contractStatus])
   @@map("evaluations")
 }

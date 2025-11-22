@@ -1,6 +1,31 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// ADD THIS GET METHOD
+export async function GET(request: Request) {
+  try {
+    const evaluations = await prisma.evaluation.findMany({
+      include: {
+        application: {
+          include: {
+            vacancy: true,
+          },
+        },
+      },
+      orderBy: {
+        evaluatedAt: 'desc',
+      },
+    });
+
+    return NextResponse.json(evaluations);
+  } catch (error: any) {
+    console.error('Error fetching evaluations:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch evaluations', message: error?.message ?? 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +44,6 @@ export async function POST(request: Request) {
       remarks,
     } = body;
 
-
     // Simple guard
     if (!applicationId) {
       return NextResponse.json(
@@ -27,7 +51,6 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-
 
     // If an evaluation already exists for this application, update it;
     // otherwise create a new one.
@@ -45,6 +68,7 @@ export async function POST(request: Request) {
         detailedScores,
         evaluatedBy,
         remarks,
+        contractStatus: 'pending', // Add default contract status
       },
       update: {
         educationalScore,
@@ -60,9 +84,7 @@ export async function POST(request: Request) {
       },
     });
 
-
     const PASSING_SCORE = 175;
-
 
     if (totalScore >= PASSING_SCORE) {
       await prisma.application.update({
@@ -71,12 +93,10 @@ export async function POST(request: Request) {
           stage: 'HIRED',
           status: 'HIRED',
           statusUpdatedAt: new Date(),
-          // keep existing employeeId if already set
           employeeId: `EMP-${Date.now()}`,
         },
       });
     }
-
 
     return NextResponse.json({
       success: true,

@@ -10,10 +10,11 @@ type Item = { href: string; label: string; icon: React.ReactNode };
 
 const NAV: Item[] = [
   { href: "/hr/dashboard", label: "Dashboard", icon: <span>📊</span> },
-  { href: "/hr/analytics", label: "Analytics", icon: <span>📈</span> }, // <-- NEW
+  { href: "/hr/analytics", label: "Analytics", icon: <span>📈</span> },
   { href: "/hr/vacancies", label: "Vacancies", icon: <span>🧾</span> },
   { href: "/hr/applicants", label: "Applicants", icon: <span>👥</span> },
   { href: "/hr/evaluation", label: "Evaluation", icon: <span>🧪</span> },
+  { href: "/hr/contract-queue", label: "Contract Queue", icon: <span>⏱️</span> }, // <-- NEW
   { href: "/hr/contracts", label: "Contract", icon: <span>📄</span> },
   { href: "/hr/renewals", label: "Renewals", icon: <span>⏳</span> },
   { href: "/hr/faculty", label: "Faculty", icon: <span>🎓</span> },
