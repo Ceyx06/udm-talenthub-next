@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -14,12 +15,25 @@ export async function POST(request: Request) {
       rank,
       ratePerHour,
       detailedScores,
-      evaluatedBy
+      evaluatedBy,
+      remarks,
     } = body;
 
-    // Create evaluation
-    const evaluation = await prisma.evaluation.create({
-      data: {
+
+    // Simple guard
+    if (!applicationId) {
+      return NextResponse.json(
+        { error: 'applicationId is required' },
+        { status: 400 },
+      );
+    }
+
+
+    // If an evaluation already exists for this application, update it;
+    // otherwise create a new one.
+    const evaluation = await prisma.evaluation.upsert({
+      where: { applicationId },
+      create: {
         applicationId,
         educationalScore,
         experienceScore,
@@ -29,39 +43,54 @@ export async function POST(request: Request) {
         rank,
         ratePerHour,
         detailedScores,
-        evaluatedBy
-      }
+        evaluatedBy,
+        remarks,
+      },
+      update: {
+        educationalScore,
+        experienceScore,
+        professionalDevScore,
+        technologicalScore,
+        totalScore,
+        rank,
+        ratePerHour,
+        detailedScores,
+        evaluatedBy,
+        remarks,
+      },
     });
 
-    // Check if qualified (e.g., totalScore >= passing score)
-    const PASSING_SCORE = 175; // Adjust as needed (70% of 250)
-    
+
+    const PASSING_SCORE = 175;
+
+
     if (totalScore >= PASSING_SCORE) {
-      // Update application to HIRED
       await prisma.application.update({
         where: { id: applicationId },
         data: {
           stage: 'HIRED',
           status: 'HIRED',
           statusUpdatedAt: new Date(),
-          employeeId: `EMP-${Date.now()}` // Generate employee ID
-        }
+          // keep existing employeeId if already set
+          employeeId: `EMP-${Date.now()}`,
+        },
       });
-
-      // Create contract (if you have Contract model)
-      // await prisma.contract.create({ ... });
     }
+
 
     return NextResponse.json({
       success: true,
       data: evaluation,
-      hired: totalScore >= PASSING_SCORE
+      hired: totalScore >= PASSING_SCORE,
     });
   } catch (error: any) {
     console.error('Error saving evaluation:', error);
-    return NextResponse.json({
-      error: 'Failed to save evaluation',
-      message: error.message
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Failed to save evaluation',
+        message: error?.message ?? 'Unknown error',
+      },
+      { status: 500 },
+    );
   }
 }
