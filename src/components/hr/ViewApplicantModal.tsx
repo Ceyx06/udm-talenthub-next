@@ -10,7 +10,7 @@ interface ViewApplicantModalProps {
   application: Application;
   onEndorse: (applicationId: string) => void;
   onUpdateFileStatus: (applicationId: string, status: string) => void;
-  onScheduleInterview?: () => void; // Optional prop
+  onScheduleInterview?: () => void;
 }
 
 export default function ViewApplicantModal({
@@ -44,6 +44,23 @@ export default function ViewApplicantModal({
 
   // Check if application is ready for interview scheduling
   const canScheduleInterview = application.stage === 'ENDORSED';
+
+  // Parse experiences and references if they're stored as JSON strings
+  const parseJsonField = (field: any) => {
+    if (!field) return [];
+    if (Array.isArray(field)) return field;
+    if (typeof field === 'string') {
+      try {
+        return JSON.parse(field);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const experiences = parseJsonField(application.experiences);
+  const references = parseJsonField(application.references);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -243,38 +260,87 @@ export default function ViewApplicantModal({
 
           {/* Experience Tab */}
           {activeTab === 'experience' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Work Experience Section */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">Work Experience</h3>
-                {Array.isArray(application.experiences) && application.experiences.length > 0 ? (
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Work Experience</h3>
+                {experiences.length > 0 ? (
                   <div className="space-y-3">
-                    {(application.experiences as any[]).map((exp: any, index: number) => (
-                      <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                        <p className="font-medium text-gray-900">{exp.position || exp.title}</p>
-                        <p className="text-sm text-gray-600">{exp.company}</p>
-                        <p className="text-sm text-gray-500">{exp.duration || `${exp.startDate} - ${exp.endDate}`}</p>
+                    {experiences.map((exp: any, index: number) => (
+                      <div key={index} className="border-l-4 border-teal-500 bg-gray-50 p-4 rounded-r-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-900 text-lg">
+                              {exp.jobTitle || exp.position || 'N/A'}
+                            </p>
+                            <p className="text-gray-700 font-medium">
+                              {exp.employer || exp.company || 'N/A'}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              {exp.from || exp.startDate || 'N/A'} - {exp.to || exp.endDate || 'Present'}
+                            </p>
+                            {(exp.responsibilities || exp.description) && (
+                              <p className="text-sm text-gray-600 mt-2 whitespace-pre-line">
+                                {exp.responsibilities || exp.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No work experience listed</p>
+                  <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-gray-500 font-medium">No work experience provided</p>
+                  </div>
                 )}
               </div>
 
+              {/* References Section */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">References</h3>
-                {Array.isArray(application.references) && application.references.length > 0 ? (
-                  <div className="space-y-3">
-                    {(application.references as any[]).map((ref: any, index: number) => (
-                      <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                        <p className="font-medium text-gray-900">{ref.name}</p>
-                        <p className="text-sm text-gray-600">{ref.position}</p>
-                        <p className="text-sm text-gray-500">{ref.contact || ref.email}</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">References</h3>
+                {references.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {references.map((ref: any, index: number) => (
+                      <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <p className="font-semibold text-gray-900">{ref.name || 'N/A'}</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {ref.position || 'N/A'}
+                        </p>
+                        {ref.company && (
+                          <p className="text-sm text-gray-600">{ref.company}</p>
+                        )}
+                        <div className="mt-2 space-y-1">
+                          {ref.email && (
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {ref.email}
+                            </p>
+                          )}
+                          {ref.contactNumber && (
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              {ref.contactNumber}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No references listed</p>
+                  <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <p className="text-gray-500 font-medium">No references provided</p>
+                  </div>
                 )}
               </div>
             </div>

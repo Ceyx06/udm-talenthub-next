@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 
 export default function HRLoginPage() {
   const router = useRouter();
@@ -37,38 +37,57 @@ export default function HRLoginPage() {
       if (result?.ok) {
         console.log('Login successful!');
         
-        // Get session to check role
-        const response = await fetch('/api/auth/session');
-        const session = await response.json();
+        // Give NextAuth time to set the cookie
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Use getSession() instead of manual fetch
+        const session = await getSession();
         
         console.log('Session data:', session);
         
-        // Store user in localStorage for your custom auth checks
-        if (session?.user) {
-          const userData = {
-            id: session.user.id,
-            name: session.user.name,
-            email: session.user.email,
-            role: session.user.role,
-          };
-          
-          localStorage.setItem('user', JSON.stringify(userData));
-          console.log('Stored in localStorage:', userData);
+        if (!session || !session.user) {
+          setErr('Failed to retrieve session. Please try again.');
+          setBusy(false);
+          return;
         }
         
+        // Store user in localStorage for your custom auth checks
+        const userData = {
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          role: session.user.role,
+        };
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+        console.log('Stored in localStorage:', userData);
+        
         // Role-based redirect
-        const role = session?.user?.role?.toUpperCase();
+        const role = session.user.role?.toUpperCase();
+        console.log('User role (uppercase):', role);
+        console.log('Raw role from session:', session.user.role);
+        
         let redirectTo = "/hr/dashboard";
 
         if (role === "HR") {
           redirectTo = "/hr/dashboard";
         } else if (role === "DEAN") {
           redirectTo = "/dean/dashboard";
+        } else {
+          // Fallback for unknown roles
+          console.warn('Unknown role, using default redirect');
+          redirectTo = "/hr/dashboard";
         }
 
         console.log('Redirecting to:', redirectTo);
-        router.push(redirectTo);
-        router.refresh();
+        console.log('About to redirect with window.location.href');
+        
+        // Use window.location for hard redirect (ensures cookies are sent)
+        window.location.href = redirectTo;
+      } else {
+        // If result is not ok and no error, something went wrong
+        setErr('Login failed. Please try again.');
+        setBusy(false);
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -149,8 +168,6 @@ export default function HRLoginPage() {
               </button>
             </div>
           </form>
-
-         
         </div>
       </div>
     </div>

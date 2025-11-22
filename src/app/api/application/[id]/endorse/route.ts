@@ -64,12 +64,12 @@ export async function PATCH(
       );
     }
 
-    // Update application - endorse to dean
+    // Update application - endorse to dean and wait for approval
     const updatedApplication = await prisma.application.update({
       where: { id },
       data: {
         stage: 'ENDORSED',
-        status: 'ENDORSED',
+        status: 'PENDING_DEAN_APPROVAL', // Changed: Now requires dean approval
         endorsedDate: new Date(),
         statusUpdatedAt: new Date(),
       },
@@ -83,11 +83,21 @@ export async function PATCH(
       }
     });
 
-    console.log(`✅ Application ${id} endorsed to Dean by HR`);
+    console.log(`✅ Application ${id} endorsed to Dean by HR - Awaiting Dean approval`);
+
+    // TODO: Send notification to Dean
+    // You can add email or in-app notification here
+    // Example:
+    // await sendNotificationToDean({
+    //   applicationId: id,
+    //   applicantName: application.fullName,
+    //   position: application.vacancy?.title,
+    //   college: application.vacancy?.college
+    // });
 
     return NextResponse.json({
       success: true,
-      message: 'Application endorsed to Dean successfully',
+      message: 'Application endorsed to Dean successfully. Waiting for Dean approval.',
       data: updatedApplication
     });
 

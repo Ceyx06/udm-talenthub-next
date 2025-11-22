@@ -22,6 +22,14 @@ interface Experience {
   responsibilities: string;
 }
 
+interface Reference {
+  name: string;
+  position: string;
+  company: string;
+  email: string;
+  contactNumber: string;
+}
+
 // Create a separate component that uses useSearchParams
 function ApplyPageContent() {
   const searchParams = useSearchParams();
@@ -35,6 +43,7 @@ function ApplyPageContent() {
   // Form states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [consentChecked, setConsentChecked] = useState(false);
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -70,6 +79,10 @@ function ApplyPageContent() {
 
   const [experiences, setExperiences] = useState<Experience[]>([
     { employer: '', jobTitle: '', from: '', to: '', responsibilities: '' }
+  ]);
+
+  const [references, setReferences] = useState<Reference[]>([
+    { name: '', position: '', company: '', email: '', contactNumber: '' }
   ]);
 
   useEffect(() => {
@@ -158,6 +171,22 @@ function ApplyPageContent() {
     setExperiences(updated);
   };
 
+  const addReference = () => {
+    setReferences([...references, { name: '', position: '', company: '', email: '', contactNumber: '' }]);
+  };
+
+  const removeReference = (index: number) => {
+    if (references.length > 1) {
+      setReferences(references.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateReference = (index: number, field: keyof Reference, value: string) => {
+    const updated = [...references];
+    updated[index] = { ...updated[index], [field]: value };
+    setReferences(updated);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -166,11 +195,36 @@ function ApplyPageContent() {
       return;
     }
 
+    if (!consentChecked) {
+      setError('You must agree to the Data Privacy Act consent');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     if (!files.pds || !files.transcript || !files.trainings || !files.employment) {
       setError('All required documents must be uploaded');
+      setLoading(false);
+      return;
+    }
+
+    // Validate work experience
+    const hasValidExperience = experiences.some(exp => 
+      exp.employer && exp.jobTitle && exp.from && exp.to && exp.responsibilities
+    );
+    if (!hasValidExperience) {
+      setError('At least one complete work experience entry is required (≥ 2 years relevant)');
+      setLoading(false);
+      return;
+    }
+
+    // Validate references
+    const hasValidReference = references.some(ref => 
+      ref.name && ref.position
+    );
+    if (!hasValidReference) {
+      setError('At least one character reference is required');
       setLoading(false);
       return;
     }
@@ -228,8 +282,8 @@ function ApplyPageContent() {
         licenseNo: formData.licenseNo || undefined,
         licenseExpiry: formData.licenseExpiry || undefined,
         coverLetter: formData.coverLetter || undefined,
-        experiences: experiences,
-        references: [],
+        experiences: experiences.filter(exp => exp.employer && exp.jobTitle),
+        references: references.filter(ref => ref.name && ref.position),
         pdsUrl,
         transcriptUrl,
         trainingsUrl,
@@ -311,8 +365,9 @@ function ApplyPageContent() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Personal Information Section */}
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">Personal Information</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">1) Personal Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -439,8 +494,9 @@ function ApplyPageContent() {
             </div>
           </section>
 
+          {/* Address Information Section */}
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">Address Information</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">2) Address Information</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Present Address</label>
@@ -465,8 +521,266 @@ function ApplyPageContent() {
             </div>
           </section>
 
+          {/* Education Section */}
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">Required Documents</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">3) Education</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Highest Degree
+                </label>
+                <input
+                  type="text"
+                  name="highestDegree"
+                  value={formData.highestDegree}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Bachelor of Science in Computer Science"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Training Hours
+                </label>
+                <input
+                  type="number"
+                  name="trainingHours"
+                  value={formData.trainingHours}
+                  onChange={handleInputChange}
+                  placeholder="Total hours"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  License Name
+                </label>
+                <input
+                  type="text"
+                  name="licenseName"
+                  value={formData.licenseName}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Professional Teacher License"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  License Number
+                </label>
+                <input
+                  type="text"
+                  name="licenseNo"
+                  value={formData.licenseNo}
+                  onChange={handleInputChange}
+                  placeholder="License number"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                License Expiry
+              </label>
+              <input
+                type="date"
+                name="licenseExpiry"
+                value={formData.licenseExpiry}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </section>
+
+          {/* Work Experience Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-gray-900">
+              4) Work Experience (≥ 2 years relevant)
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">Add past roles with dates and key responsibilities.</p>
+            
+            {experiences.map((exp, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Employer <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={exp.employer}
+                      onChange={(e) => updateExperience(index, 'employer', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Job Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={exp.jobTitle}
+                      onChange={(e) => updateExperience(index, 'jobTitle', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      From <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="month"
+                      value={exp.from}
+                      onChange={(e) => updateExperience(index, 'from', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="dd-----yyyy"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      To <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="month"
+                      value={exp.to}
+                      onChange={(e) => updateExperience(index, 'to', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="dd-----yyyy"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Key Responsibilities
+                  </label>
+                  <textarea
+                    value={exp.responsibilities}
+                    onChange={(e) => updateExperience(index, 'responsibilities', e.target.value)}
+                    rows={3}
+                    placeholder="Short description"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {experiences.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeExperience(index)}
+                    className="text-sm text-red-600 hover:text-red-800 font-medium"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addExperience}
+              className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              + Add Experience
+            </button>
+          </section>
+
+          {/* Character References Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-gray-900">
+              5) Character References
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">Minimum of one professional reference is recommended.</p>
+            
+            {references.map((ref, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={ref.name}
+                      onChange={(e) => updateReference(index, 'name', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Position / Relation <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={ref.position}
+                      onChange={(e) => updateReference(index, 'position', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Company / Organization
+                    </label>
+                    <input
+                      type="text"
+                      value={ref.company}
+                      onChange={(e) => updateReference(index, 'company', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={ref.email}
+                      onChange={(e) => updateReference(index, 'email', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Contact Number</label>
+                    <input
+                      type="tel"
+                      value={ref.contactNumber}
+                      onChange={(e) => updateReference(index, 'contactNumber', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {references.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeReference(index)}
+                    className="text-sm text-red-600 hover:text-red-800 font-medium"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addReference}
+              className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              + Add Reference
+            </button>
+          </section>
+
+          {/* Required Documents Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">7) Required Documents</h2>
             <p className="text-sm text-gray-600 mb-4">Please upload the following required documents (PDF, JPG, or PNG format, max 5MB each)</p>
             
             <div className="space-y-4">
@@ -528,10 +842,30 @@ function ApplyPageContent() {
             </div>
           </section>
 
+          {/* Applicant Consent Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">8) Applicant Consent</h2>
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="consent"
+                  checked={consentChecked}
+                  onChange={(e) => setConsentChecked(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="consent" className="text-sm text-gray-700">
+                  I certify that the information provided is true and correct, and I consent to the collection and processing of my personal data in accordance with the Data Privacy Act of 2012 (RA 10173). <span className="text-red-500">*</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          {/* Submit Buttons */}
           <div className="flex gap-4 pt-4">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !consentChecked}
               className="flex-1 bg-blue-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? 'Submitting...' : 'Submit Application'}
