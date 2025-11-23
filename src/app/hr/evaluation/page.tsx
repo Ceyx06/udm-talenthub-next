@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 /* ======================= TYPES ======================= */
@@ -468,22 +468,22 @@ function EvaluationModal({
   const [activeCategory, setActiveCategory] =
     useState<EvaluationCategory>('EDUCATION');
 
-  // Keep scroll position inside the modal
+  // Single scroll container inside the modal
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const lastScrollTopRef = useRef(0);
 
-  const handleContentScroll = () => {
-    if (scrollRef.current) {
-      lastScrollTopRef.current = scrollRef.current.scrollTop;
-    }
-  };
-
-  // When switching views (summary/form) or categories, restore scroll.
+  // When the category changes, always scroll the inner container to the top
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = lastScrollTopRef.current;
-    }
-  }, [showPointSummary, activeCategory]);
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeCategory]);
+
+  // When toggling between form and point summary, just reset to top
+  // (no attempt to restore old positions – avoids jumpiness)
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTo({ top: 0 });
+  }, [showPointSummary]);
+
 
   /* ========== CATEGORY 1 – EDUCATIONAL QUALIFICATIONS (1.1–1.3) ========== */
 
@@ -525,6 +525,30 @@ function EvaluationModal({
   /* ========== CATEGORY 3 – DETAILED (3.1–3.6) ========== */
 
   const [cat3Units, setCat3Units] = useState<Cat3Units>({});
+    // Scroll-safe updater for Category 3 units
+  const handleCat3UnitsChange = useCallback(
+    (field: keyof typeof CAT3_CREDITS, value: number) => {
+      // If we're in Category 3 and the scroll container exists,
+      // capture the current scroll position BEFORE updating state.
+      if (activeCategory === 'PROF_DEV' && scrollRef.current) {
+        const container = scrollRef.current;
+        const prevTop = container.scrollTop;
+
+        setCat3Units((prev) => ({ ...prev, [field]: value }));
+
+        // After React commits the update, restore scrollTop.
+        requestAnimationFrame(() => {
+          if (scrollRef.current === container) {
+            container.scrollTop = prevTop;
+          }
+        });
+      } else {
+        // Fallback: if not in Category 3, just update normally
+        setCat3Units((prev) => ({ ...prev, [field]: value }));
+      }
+    },
+    [activeCategory],
+  );
 
   /* ========== CATEGORY 4 – TECHNOLOGICAL KNOWLEDGE (4.1–4.4) ========== */
 
@@ -969,11 +993,10 @@ const handleSave = async () => {
             </div>
 
             {/* PINK BOX – Scrollable evaluation content */}
-            <div
-              ref={scrollRef}
-              onScroll={handleContentScroll}
-              className="flex-1 overflow-y-auto px-6 py-4 bg-pink-50/40"
-            >
+              <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto px-6 py-4 bg-pink-50/40"
+              >
               {activeCategory === 'EDUCATION' && (
                 <EducationQualificationsSection
                   highestDegree={highestDegree}
@@ -1031,7 +1054,7 @@ const handleSave = async () => {
               {activeCategory === 'PROF_DEV' && (
                 <Category3Section
                   units={cat3Units}
-                  setUnits={setCat3Units}
+                  onUnitsChange={handleCat3UnitsChange}
                   subtotal={section3}
                 />
               )}
@@ -1761,13 +1784,12 @@ function ExperienceBlock({ title, rows }: ExperienceBlockProps) {
 
 interface Category3SectionProps {
   units: Cat3Units;
-  setUnits: React.Dispatch<React.SetStateAction<Cat3Units>>;
+  onUnitsChange: (field: keyof typeof CAT3_CREDITS, value: number) => void;
   subtotal: number;
 }
-
 function Category3Section({
   units,
-  setUnits,
+  onUnitsChange,
   subtotal,
 }: Category3SectionProps) {
   const handle = (
@@ -1775,7 +1797,7 @@ function Category3Section({
     value: string,
   ) => {
     const n = Math.max(0, Number(value) || 0);
-    setUnits((prev) => ({ ...prev, [field]: n }));
+    onUnitsChange(field, n);
   };
 
   const computeSubtotal = (keys: (keyof typeof CAT3_CREDITS)[]) =>
@@ -2462,7 +2484,7 @@ function Category3Section({
       <div className="flex justify-end items-center px-1 pt-1 text-sm font-semibold">
         <span className="mr-2">
           Category Total (3. Professional Development, Achievement
-          &amp; Honors, capped at 50):
+          &amp; Honors):
         </span>
         <span>{subtotal.toFixed(2)}</span>
       </div>
@@ -2760,7 +2782,7 @@ function TechnologicalKnowledgeSection({
       {/* Category 4 total */}
       <div className="flex justify-end items-center px-1 pt-1 text-sm font-semibold">
         <span className="mr-2">
-          Category Total (4. Technological Knowledge, max 50 pts):
+          Category Total (4. Technological Knowledge):
         </span>
         <span>{subtotal.toFixed(2)}</span>
       </div>
