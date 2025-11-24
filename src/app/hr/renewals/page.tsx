@@ -4,21 +4,37 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
-import type { RenewalRow } from "@/types/renewals";
-import { readMock, filterMock } from "@/lib/mockRenewals";
+
+type RenewalRow = {
+  id: string;
+  facultyName: string;
+  college: string | null;
+  contractNo: string;
+  position: string;
+  contractEndDate: string | null;
+  status: string; // "PENDING_DEAN" | "APPROVED" | "REJECTED" ...
+};
 
 export default function HRRenewalsPage() {
   const [rows, setRows] = useState<RenewalRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
 
-  function load(opts?: { search?: string }) {
+  const load = async () => {
     setLoading(true);
-    const q = (opts?.search ?? "").trim();
-    const data = filterMock(readMock(), q);
-    setRows(data);
-    setLoading(false);
-  }
+    try {
+      const res = await fetch("/api/hr/renewals");
+      if (!res.ok) {
+        throw new Error("Failed to fetch renewals");
+      }
+      const data = await res.json();
+      setRows(data.items ?? []);
+    } catch (err) {
+      console.error("Error loading HR renewals:", err);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -26,15 +42,6 @@ export default function HRRenewalsPage() {
 
   const fmtDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—";
-
-  const deanBadge = (v: RenewalRow["deanRecommendation"]) =>
-    v === "RENEW" ? (
-      <Badge tone="green">Renew</Badge>
-    ) : v === "NOT_RENEW" ? (
-      <Badge tone="red">Not Renew</Badge>
-    ) : (
-      <Badge tone="yellow">Pending</Badge>
-    );
 
   const statusBadge = (s: RenewalRow["status"]) =>
     s === "APPROVED" ? (
@@ -49,28 +56,7 @@ export default function HRRenewalsPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <PageHeader title="Renewals" subtitle="Manage contract renewals" />
-
-        {/* 🔽 Enter-to-search: wrapped in a form */}
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            load({ search });
-          }}
-        >
-          <input
-            className="border rounded-lg px-3 py-2"
-            placeholder="Search faculty/college/contract…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="rounded-md border px-3 py-2 hover:bg-gray-100 transition"
-          >
-            Search
-          </button>
-        </form>
+        {/* search removed on purpose */}
       </div>
 
       <div className="rounded-xl border bg-white overflow-hidden">
@@ -82,20 +68,19 @@ export default function HRRenewalsPage() {
               <th>Contract No</th>
               <th>Position</th>
               <th>End Date</th>
-              <th>Dean Recommendation</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="p-3" colSpan={7}>
+                <td className="p-3" colSpan={6}>
                   Loading...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td className="p-3" colSpan={7}>
+                <td className="p-3" colSpan={6}>
                   No records
                 </td>
               </tr>
@@ -103,11 +88,16 @@ export default function HRRenewalsPage() {
               rows.map((r) => (
                 <tr key={r.id} className="border-t">
                   <td className="p-3">{r.facultyName}</td>
-                  <td>{r.college ? <Badge tone="gray">{r.college}</Badge> : "—"}</td>
-                  <td>{r.contractNo || "—"}</td>
+                  <td>
+                    {r.college ? (
+                      <Badge tone="gray">{r.college}</Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>{r.contractNo}</td>
                   <td>{r.position}</td>
                   <td>{fmtDate(r.contractEndDate)}</td>
-                  <td>{deanBadge(r.deanRecommendation)}</td>
                   <td>{statusBadge(r.status)}</td>
                 </tr>
               ))
@@ -118,7 +108,7 @@ export default function HRRenewalsPage() {
 
       <div className="flex justify-end">
         <button
-          onClick={() => load({ search })}
+          onClick={load}
           className="rounded-md border px-3 py-2 hover:bg-gray-100 transition"
         >
           Refresh

@@ -1,26 +1,39 @@
+// src/app/dean/renewals/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import Badge from "@/components/common/Badge";
-import type { RenewalRow } from "@/types/renewals";
-import {
-  readMock,
-  writeMock,
-  updateMockRecommendation,
-} from "@/lib/mockRenewals";
+
+type DeanRenewalRow = {
+  id: string;
+  facultyName: string;
+  position: string;
+  type: string | null;
+  contractEndDate: string | null;
+  status: string; // value from Contract.status
+};
 
 export default function DeanRenewalsPage() {
-  const [rows, setRows] = useState<RenewalRow[]>([]);
-  const [remarks, setRemarks] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [rows, setRows] = useState<DeanRenewalRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  function load() {
+  const load = async () => {
     setLoading(true);
-    setRows(readMock());
-    setLoading(false);
-  }
+    try {
+      const res = await fetch("/api/dean/renewals");
+      if (!res.ok) {
+        throw new Error("Failed to fetch dean renewals");
+      }
+      const data = await res.json();
+      setRows(data.items ?? []);
+    } catch (err) {
+      console.error("Error loading dean renewals:", err);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -29,24 +42,38 @@ export default function DeanRenewalsPage() {
   const fmtDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—";
 
-  const recBadge = (v: RenewalRow["deanRecommendation"]) =>
-    v === "PENDING" ? (
-      <Badge tone="yellow">Pending</Badge>
-    ) : v === "RENEW" ? (
-      <Badge tone="green">Renew</Badge>
-    ) : (
-      <Badge tone="red">Not Renew</Badge>
-    );
+  const statusBadge = (s: DeanRenewalRow["status"]) => {
+    // Adjust these checks to match your actual Contract.status enum values
+    if (s === "APPROVED" || s === "RENEWED") {
+      return <Badge tone="green">Approved</Badge>;
+    }
+    if (s === "REJECTED" || s === "NOT_RENEW") {
+      return <Badge tone="red">Not Renew</Badge>;
+    }
+    // anything else is treated as "Pending Dean"
+    return <Badge tone="yellow">Pending Dean</Badge>;
+  };
 
-  function act(id: string, rec: "RENEW" | "NOT_RENEW") {
-    // update shared mock store
-    const updated = updateMockRecommendation(id, rec, remarks || undefined);
-    writeMock(updated);
-    // reflect in this page immediately
-    setRows(updated);
-    setRemarks("");
-    setSelectedId(null);
-  }
+  const act = async (id: string, decision: "RENEW" | "NOT_RENEW") => {
+    try {
+      setLoading(true);
+
+      const res = await fetch(`/api/dean/renewals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+
+      if (!res.ok) {
+        console.error("Failed to update contract status");
+      }
+
+      await load();
+    } catch (err) {
+      console.error("Error updating contract status:", err);
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -63,7 +90,7 @@ export default function DeanRenewalsPage() {
               <th>Position</th>
               <th>Type</th>
               <th>Contract End</th>
-              <th>Recommendation</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -85,17 +112,10 @@ export default function DeanRenewalsPage() {
                 <tr key={r.id} className="border-t">
                   <td className="p-3">{r.facultyName}</td>
                   <td>{r.position}</td>
-                  <td>{r.type}</td>
+                  <td>{r.type ?? "—"}</td>
                   <td>{fmtDate(r.contractEndDate)}</td>
-                  <td>{recBadge(r.deanRecommendation)}</td>
+                  <td>{statusBadge(r.status)}</td>
                   <td className="space-x-2 p-3">
-                    <button
-                      onClick={() => setSelectedId(r.id)}
-                      title="Add a remark for this faculty"
-                      className="rounded-md border px-3 py-1 transition hover:bg-gray-100 hover:shadow-sm"
-                    >
-                      Write Remarks
-                    </button>
                     <button
                       onClick={() => act(r.id, "RENEW")}
                       title="Recommend to renew this contract"
@@ -117,25 +137,7 @@ export default function DeanRenewalsPage() {
           </tbody>
         </table>
       </div>
-
-      {/* Remarks panel */}
-      <div className="rounded-xl border bg-white p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium">Additional Remarks</h3>
-          <span className="text-xs text-gray-500">
-            {selectedId ? `Target ID: ${selectedId}` : 'Select “Write Remarks”'}
-          </span>
-        </div>
-        <textarea
-          className="w-full border rounded-lg p-3 min-h-[140px] transition focus:ring-2 focus:ring-blue-200"
-          placeholder="Enter any additional comments or recommendations..."
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-        />
-        <p className="text-xs text-gray-500 mt-2">
-          Tip: The text above is saved when you click “✓ Renew” or “✗ Not Renew”.
-        </p>
-      </div>
+      {/* Write Remarks + Additional Remarks removed as requested */}
     </div>
   );
 }
