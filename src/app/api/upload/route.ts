@@ -1,9 +1,11 @@
-// src/app/api/upload/route.ts
-
+import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +14,7 @@ export async function POST(request: Request) {
 
     if (!file) {
       return NextResponse.json(
-        { error: 'No file uploaded' },
+        { error: 'No file provided' },
         { status: 400 }
       );
     }
@@ -34,53 +36,42 @@ export async function POST(request: Request) {
       );
     }
 
-    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
+    return new Promise((resolve) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'talenthub/applications',
+          resource_type: 'auto',
+          max_file_size: 52428800, // 50MB
+        },
+        (error, result) => {
+          if (error) {
+            console.error('Cloudinary upload error:', error);
+            resolve(NextResponse.json(
+              { error: 'Upload failed', message: error.message },
+              { status: 500 }
+            ));
+          } else {
+            console.log('File uploaded successfully:', result?.secure_url);
+            resolve(NextResponse.json({
+              success: true,
+              url: (result as any).secure_url,
+              publicId: (result as any).public_id,
+            }));
+          }
+        }
+      );
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 15);
-    const extension = file.name.split('.').pop();
-    const filename = `${timestamp}-${randomStr}.${extension}`;
-
-    // Save file
-    const filepath = join(uploadsDir, filename);
-    await writeFile(filepath, buffer);
-
-    // Return public URL
-    const url = `/uploads/${filename}`;
-
-    console.log('✅ File uploaded successfully:', url);
-
-    return NextResponse.json({
-      success: true,
-      url: url,
-      filename: filename,
-      size: file.size,
-      type: file.type
+      uploadStream.end(buffer);
     });
 
   } catch (error: any) {
-    console.error('❌ Upload error:', error);
+    console.error('Upload error:', error);
     return NextResponse.json(
-      { error: 'Failed to upload file', details: error.message },
+      { error: 'Upload failed', message: error.message },
       { status: 500 }
     );
   }
-}
-
-// Also support GET to check if API is working
-export async function GET() {
-  return NextResponse.json({
-    message: 'Upload API is working',
-    maxSize: '5MB',
-    allowedTypes: ['PDF', 'JPG', 'PNG']
-  });
 }

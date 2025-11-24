@@ -119,12 +119,25 @@ model Application {
   stage     String?   @default("APPLIED")
 
   // Stage dates
-  endorsedDate    DateTime?
-  employeeId      String?
-  hiredAt         DateTime?
-  interviewDate   DateTime?
-  demoDate        DateTime?
-  statusUpdatedAt DateTime?
+  endorsedDate     DateTime?
+  endorsedBy       String?       // Track who endorsed
+  
+  // Dean Review Fields
+  deanReviewedDate DateTime?     // When dean reviewed
+  deanReviewedBy   String?       // Dean user id
+  deanRemarks      String?       // Dean's comments
+  
+  employeeId       String?
+  hiredAt          DateTime?
+  interviewDate    DateTime?     // Main interview date
+  demoDate         DateTime?     // Teaching demo date
+  statusUpdatedAt  DateTime?
+
+  // NEW: Additional Interview Details for Email
+  interviewTime     String?      // Time of interview (e.g., "10:00 AM")
+  interviewLocation String?      // Location of interview
+  interviewType     String?      // Type (Panel, One-on-One, Virtual)
+  interviewNotes    String?      // Additional notes for applicant
 
   // Evaluation
   evaluationScore Float?

@@ -2,7 +2,7 @@
 'use client';
 
 import { Application } from '@/types/application';
-import { Eye, Trash2, Calendar } from 'lucide-react';
+import { Eye, Trash2, Calendar, Clock } from 'lucide-react';
 
 export interface ApplicantsTableProps {
   applications: Application[];
@@ -24,7 +24,9 @@ export default function ApplicantsTable({
     const colors: Record<string, string> = {
       'APPLIED': 'bg-gray-100 text-gray-800',
       'PENDING': 'bg-yellow-100 text-yellow-800',
+      'PENDING_DEAN_APPROVAL': 'bg-orange-100 text-orange-800',  // NEW
       'ENDORSED': 'bg-blue-100 text-blue-800',
+      'DISAPPROVED': 'bg-red-100 text-red-800',  // NEW
       'INTERVIEW_SCHEDULED': 'bg-purple-100 text-purple-800',
       'EVALUATED': 'bg-indigo-100 text-indigo-800',
       'FOR_HIRING': 'bg-amber-100 text-amber-800',
@@ -35,7 +37,13 @@ export default function ApplicantsTable({
   };
 
   const formatStage = (stage: string): string => {
-    return stage.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+    // Custom labels for new stages
+    const labels: Record<string, string> = {
+      'PENDING_DEAN_APPROVAL': 'Pending Dean Approval',
+      'ENDORSED': 'Endorsed',
+      'DISAPPROVED': 'Disapproved by Dean'
+    };
+    return labels[stage] || stage.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
   };
 
   if (applications.length === 0) {
@@ -114,7 +122,7 @@ export default function ApplicantsTable({
                       <Eye size={18} />
                     </button>
 
-                    {/* Schedule Interview Button - Only for ENDORSED applications */}
+                    {/* ✅ FIXED: Schedule Interview Button - Only for ENDORSED (Dean approved) */}
                     {application.stage === 'ENDORSED' && onScheduleInterview && (
                       <button
                         onClick={() => onScheduleInterview(application)}
@@ -124,6 +132,21 @@ export default function ApplicantsTable({
                         <Calendar size={14} />
                         <span className="font-medium">Schedule</span>
                       </button>
+                    )}
+
+                    {/* ✅ NEW: Show "Awaiting Dean" badge for PENDING_DEAN_APPROVAL */}
+                    {application.stage === 'PENDING_DEAN_APPROVAL' && (
+                      <span className="px-3 py-1 text-xs bg-orange-100 text-orange-700 rounded-md flex items-center gap-1" title="Waiting for Dean's approval before scheduling">
+                        <Clock size={14} />
+                        <span className="font-medium">Awaiting Dean</span>
+                      </span>
+                    )}
+
+                    {/* ✅ NEW: Show "Disapproved" badge */}
+                    {application.stage === 'DISAPPROVED' && (
+                      <span className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded-md flex items-center gap-1">
+                        <span className="font-medium">Disapproved</span>
+                      </span>
                     )}
 
                     {/* Show interview date for INTERVIEW_SCHEDULED */}

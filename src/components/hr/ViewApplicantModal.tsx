@@ -26,11 +26,9 @@ export default function ViewApplicantModal({
 
   if (!isOpen) return null;
 
-  // Calculate file status
   const getFileCompletionStatus = () => {
     const requiredFiles = ['pdsUrl', 'transcriptUrl', 'trainingsUrl', 'employmentUrl'];
     const uploadedFiles = requiredFiles.filter(file => application[file as keyof Application]);
-    
     if (uploadedFiles.length === requiredFiles.length) return 'complete';
     if (uploadedFiles.length > 0) return 'partial';
     return 'incomplete';
@@ -42,25 +40,49 @@ export default function ViewApplicantModal({
     onUpdateFileStatus(application.id, fileStatus);
   };
 
-  // Check if application is ready for interview scheduling
+  // ============ FIXED LOGIC ============
+  // HR can ONLY schedule interview if Dean has APPROVED (stage === 'ENDORSED')
+  // 'PENDING_DEAN_APPROVAL' means HR endorsed but Dean hasn't approved yet
   const canScheduleInterview = application.stage === 'ENDORSED';
+  
+  // HR can endorse if not yet endorsed (no pending or approved status)
+  const canEndorse = !application.endorsedDate && 
+    application.stage !== 'PENDING_DEAN_APPROVAL' && 
+    application.stage !== 'ENDORSED' &&
+    application.stage !== 'DISAPPROVED';
 
-  // Parse experiences and references if they're stored as JSON strings
+  // Check if waiting for Dean approval
+  const isPendingDeanApproval = application.stage === 'PENDING_DEAN_APPROVAL';
+  
+  // Check if Dean disapproved
+  const isDisapproved = application.stage === 'DISAPPROVED';
+  // =====================================
+
   const parseJsonField = (field: any) => {
     if (!field) return [];
     if (Array.isArray(field)) return field;
     if (typeof field === 'string') {
-      try {
-        return JSON.parse(field);
-      } catch (e) {
-        return [];
-      }
+      try { return JSON.parse(field); } catch (e) { return []; }
     }
     return [];
   };
 
   const experiences = parseJsonField(application.experiences);
   const references = parseJsonField(application.references);
+
+  // Helper function to get stage badge color
+  const getStageBadge = (stage: string) => {
+    switch (stage) {
+      case 'PENDING_DEAN_APPROVAL':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'ENDORSED':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'DISAPPROVED':
+        return 'bg-red-100 text-red-800 border-red-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -71,15 +93,48 @@ export default function ViewApplicantModal({
             <h2 className="text-xl font-bold">Application Details</h2>
             <p className="text-teal-100 text-sm">QR Code: {application.qrCode}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white hover:bg-teal-700 rounded-full p-2 transition-colors"
-          >
+          <button onClick={onClose} className="text-white hover:bg-teal-700 rounded-full p-2 transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
+
+        {/* Status Banner - Shows current endorsement status */}
+        {isPendingDeanApproval && (
+          <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-yellow-800 font-medium">Waiting for Dean's Approval</span>
+              <span className="text-yellow-600 text-sm">- Cannot schedule interview until Dean approves</span>
+            </div>
+          </div>
+        )}
+        
+        {isDisapproved && (
+          <div className="bg-red-50 border-b border-red-200 px-6 py-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-red-800 font-medium">Disapproved by Dean</span>
+            </div>
+          </div>
+        )}
+
+        {canScheduleInterview && (
+          <div className="bg-green-50 border-b border-green-200 px-6 py-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-green-800 font-medium">Approved by Dean</span>
+              <span className="text-green-600 text-sm">- Ready for interview scheduling</span>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="border-b border-gray-200 px-6">
@@ -94,9 +149,7 @@ export default function ViewApplicantModal({
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`py-3 px-4 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-teal-600 text-teal-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                  activeTab === tab.id ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
                 {tab.label}
@@ -107,7 +160,6 @@ export default function ViewApplicantModal({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-250px)]">
-          {/* Personal Info Tab */}
           {activeTab === 'personal' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -125,9 +177,7 @@ export default function ViewApplicantModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                  <p className="text-gray-900">
-                    {application.dob ? new Date(application.dob).toLocaleDateString() : 'N/A'}
-                  </p>
+                  <p className="text-gray-900">{application.dob ? new Date(application.dob).toLocaleDateString() : 'N/A'}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
@@ -157,37 +207,24 @@ export default function ViewApplicantModal({
             </div>
           )}
 
-          {/* Documents Tab */}
           {activeTab === 'documents' && (
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-medium text-blue-900">File Status</h3>
-                    <p className="text-sm text-blue-700">
-                      Current status: <span className="font-semibold capitalize">{currentFileStatus}</span>
-                    </p>
+                    <p className="text-sm text-blue-700">Current status: <span className="font-semibold capitalize">{currentFileStatus}</span></p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <select
-                      value={fileStatus}
-                      onChange={(e) => setFileStatus(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    >
+                    <select value={fileStatus} onChange={(e) => setFileStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
                       <option value="pending">Pending</option>
                       <option value="partial">Partial</option>
                       <option value="complete">Complete</option>
                     </select>
-                    <button
-                      onClick={handleUpdateFileStatus}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                    >
-                      Update
-                    </button>
+                    <button onClick={handleUpdateFileStatus} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">Update</button>
                   </div>
                 </div>
               </div>
-
               <div className="grid grid-cols-1 gap-3">
                 {[
                   { label: 'Personal Data Sheet (PDS)', url: application.pdsUrl },
@@ -203,24 +240,13 @@ export default function ViewApplicantModal({
                       </svg>
                       <div>
                         <p className="font-medium text-gray-900">{doc.label}</p>
-                        <p className="text-sm text-gray-500">
-                          {doc.url ? 'Uploaded' : 'Not uploaded'}
-                        </p>
+                        <p className="text-sm text-gray-500">{doc.url ? 'Uploaded' : 'Not uploaded'}</p>
                       </div>
                     </div>
                     {doc.url ? (
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm"
-                      >
-                        View
-                      </a>
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 text-sm">View</a>
                     ) : (
-                      <span className="px-4 py-2 bg-gray-300 text-gray-600 rounded-md text-sm cursor-not-allowed">
-                        N/A
-                      </span>
+                      <span className="px-4 py-2 bg-gray-300 text-gray-600 rounded-md text-sm cursor-not-allowed">N/A</span>
                     )}
                   </div>
                 ))}
@@ -228,7 +254,6 @@ export default function ViewApplicantModal({
             </div>
           )}
 
-          {/* Education Tab */}
           {activeTab === 'education' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -250,42 +275,26 @@ export default function ViewApplicantModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">License Expiry</label>
-                  <p className="text-gray-900">
-                    {application.licenseExpiry ? new Date(application.licenseExpiry).toLocaleDateString() : 'N/A'}
-                  </p>
+                  <p className="text-gray-900">{application.licenseExpiry ? new Date(application.licenseExpiry).toLocaleDateString() : 'N/A'}</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Experience Tab */}
           {activeTab === 'experience' && (
             <div className="space-y-6">
-              {/* Work Experience Section */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Work Experience</h3>
                 {experiences.length > 0 ? (
                   <div className="space-y-3">
                     {experiences.map((exp: any, index: number) => (
                       <div key={index} className="border-l-4 border-teal-500 bg-gray-50 p-4 rounded-r-lg">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900 text-lg">
-                              {exp.jobTitle || exp.position || 'N/A'}
-                            </p>
-                            <p className="text-gray-700 font-medium">
-                              {exp.employer || exp.company || 'N/A'}
-                            </p>
-                            <p className="text-sm text-gray-500 mt-1">
-                              {exp.from || exp.startDate || 'N/A'} - {exp.to || exp.endDate || 'Present'}
-                            </p>
-                            {(exp.responsibilities || exp.description) && (
-                              <p className="text-sm text-gray-600 mt-2 whitespace-pre-line">
-                                {exp.responsibilities || exp.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                        <p className="font-semibold text-gray-900 text-lg">{exp.jobTitle || exp.position || 'N/A'}</p>
+                        <p className="text-gray-700 font-medium">{exp.employer || exp.company || 'N/A'}</p>
+                        <p className="text-sm text-gray-500 mt-1">{exp.from || exp.startDate || 'N/A'} - {exp.to || exp.endDate || 'Present'}</p>
+                        {(exp.responsibilities || exp.description) && (
+                          <p className="text-sm text-gray-600 mt-2 whitespace-pre-line">{exp.responsibilities || exp.description}</p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -298,8 +307,6 @@ export default function ViewApplicantModal({
                   </div>
                 )}
               </div>
-
-              {/* References Section */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">References</h3>
                 {references.length > 0 ? (
@@ -307,12 +314,8 @@ export default function ViewApplicantModal({
                     {references.map((ref: any, index: number) => (
                       <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                         <p className="font-semibold text-gray-900">{ref.name || 'N/A'}</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {ref.position || 'N/A'}
-                        </p>
-                        {ref.company && (
-                          <p className="text-sm text-gray-600">{ref.company}</p>
-                        )}
+                        <p className="text-sm text-gray-600 mt-1">{ref.position || 'N/A'}</p>
+                        {ref.company && <p className="text-sm text-gray-600">{ref.company}</p>}
                         <div className="mt-2 space-y-1">
                           {ref.email && (
                             <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -347,32 +350,44 @@ export default function ViewApplicantModal({
           )}
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer Actions - FIXED BUTTON LOGIC */}
         <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium">Stage:</span> {application.stage} | 
-            <span className="font-medium ml-2">Status:</span> {application.status}
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span className="font-medium">Stage:</span>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStageBadge(application.stage || '')}`}>
+              {application.stage === 'PENDING_DEAN_APPROVAL' ? 'Pending Dean Approval' : application.stage}
+            </span>
+            <span className="mx-2">|</span>
+            <span className="font-medium">Status:</span> {application.status}
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-            >
+            <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50">
               Close
             </button>
+            
+            {/* Show Schedule button ONLY if Dean has approved */}
             {canScheduleInterview && onScheduleInterview && (
-              <button
-                onClick={onScheduleInterview}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                📅 Schedule Interview
+              <button onClick={onScheduleInterview} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Schedule Interview
               </button>
             )}
-            {!application.endorsedDate && (
-              <button
-                onClick={() => onEndorse(application.id)}
-                className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
-              >
+
+            {/* Show disabled button with tooltip when pending Dean approval */}
+            {isPendingDeanApproval && (
+              <button disabled className="px-4 py-2 bg-gray-300 text-gray-500 rounded-md cursor-not-allowed flex items-center gap-2" title="Waiting for Dean's approval">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Awaiting Dean Approval
+              </button>
+            )}
+            
+            {/* Show Endorse button only if not yet endorsed */}
+            {canEndorse && (
+              <button onClick={() => onEndorse(application.id)} className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700">
                 Endorse to Dean
               </button>
             )}

@@ -15,18 +15,18 @@ export async function PATCH(
     // Check if user is authenticated and has DEAN role
     if (!session || session.user.role !== 'DEAN') {
       return NextResponse.json(
-        { error: 'Unauthorized. Only Deans can approve/reject applications.' },
+        { error: 'Unauthorized. Only Dean can approve/disapprove applications.' },
         { status: 401 }
       );
     }
 
     const { id } = params;
     const body = await request.json();
-    const { action, remarks } = body; // action: 'approve' or 'reject'
+    const { action, remarks } = body; // action: 'APPROVE' or 'DISAPPROVE'
 
-    if (!action || !['approve', 'reject'].includes(action)) {
+    if (!action || !['APPROVE', 'DISAPPROVE'].includes(action)) {
       return NextResponse.json(
-        { error: 'Invalid action. Must be "approve" or "reject".' },
+        { error: 'Invalid action. Must be APPROVE or DISAPPROVE.' },
         { status: 400 }
       );
     }
@@ -51,43 +51,24 @@ export async function PATCH(
       );
     }
 
-    // Check if application is in ENDORSED stage
-    if (application.stage !== 'ENDORSED') {
+    // Check if application is pending dean approval
+    if (application.stage !== 'PENDING_DEAN_APPROVAL') {
       return NextResponse.json(
-        { error: 'Application is not in ENDORSED stage' },
+        { error: `Cannot review application. Current stage: ${application.stage}` },
         { status: 400 }
       );
     }
 
-    // Check if application status is waiting for dean approval
-    if (application.status !== 'PENDING_DEAN_APPROVAL') {
-      return NextResponse.json(
-        { error: 'Application is not pending dean approval' },
-        { status: 400 }
-      );
-    }
-
-    // Determine new stage and status based on action
-    let newStage: string;
-    let newStatus: string;
-
-    if (action === 'approve') {
-      newStage = 'APPROVED_BY_DEAN';
-      newStatus = 'APPROVED';
-    } else {
-      newStage = 'REJECTED_BY_DEAN';
-      newStatus = 'REJECTED';
-    }
-
-    // Update application with dean's decision
+    // Update application based on action
     const updatedApplication = await prisma.application.update({
       where: { id },
       data: {
-        stage: newStage,
-        status: newStatus,
+        stage: action === 'APPROVE' ? 'ENDORSED' : 'DISAPPROVED',
+        status: action === 'APPROVE' ? 'READY_FOR_INTERVIEW' : 'REJECTED',
+        deanReviewedDate: new Date(),
+        deanReviewedBy: session.user.id,
+        deanRemarks: remarks || null,
         statusUpdatedAt: new Date(),
-        // Store dean remarks in rejectionReason field (you might want to add a deanRemarks field)
-        ...(remarks && { rejectionReason: remarks }),
       },
       include: {
         vacancy: {
@@ -99,23 +80,13 @@ export async function PATCH(
       }
     });
 
-    console.log(`✅ Application ${id} ${action}d by Dean (${session.user.email})`);
-
-    // TODO: Send notification to HR
-    // Example:
-    // await sendNotificationToHR({
-    //   applicationId: id,
-    //   applicantName: application.fullName,
-    //   position: application.vacancy?.title,
-    //   action: action,
-    //   deanName: session.user.name
-    // });
+    const actionText = action === 'APPROVE' ? 'approved' : 'disapproved';
+    console.log(`✅ Application ${id} ${actionText} by Dean`);
 
     return NextResponse.json({
       success: true,
-      message: `Application ${action}d successfully`,
-      data: updatedApplication,
-      action: action
+      message: `Application ${actionText} successfully.${action === 'APPROVE' ? ' HR can now schedule interview.' : ''}`,
+      data: updatedApplication
     });
 
   } catch (error: any) {
