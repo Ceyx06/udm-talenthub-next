@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, CheckCircle, Briefcase, MapPin, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle, Briefcase, MapPin, Calendar, FileText, Upload, X } from 'lucide-react';
 
 function ApplyPageContent() {
     const searchParams = useSearchParams();
@@ -45,6 +45,14 @@ function ApplyPageContent() {
         message: ''
     });
 
+    // File upload state
+    const [files, setFiles] = useState({
+        pds: null as File | null,
+        transcript: null as File | null,
+        trainingCert: null as File | null,
+        employmentCert: null as File | null
+    });
+
     const [experiences, setExperiences] = useState([
         { employer: '', title: '', from: '', to: '', desc: '' }
     ]);
@@ -54,6 +62,48 @@ function ApplyPageContent() {
     ]);
 
     const [consent, setConsent] = useState(false);
+
+    // Validation helpers
+    const validateAge = (dob: string) => {
+        if (!dob) return { valid: false, message: '' };
+        const birthDate = new Date(dob);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+        if (age < 18) {
+            return { valid: false, message: 'You must be at least 18 years old to apply.' };
+        }
+        if (age > 70) {
+            return { valid: false, message: 'Please enter a valid birth date.' };
+        }
+        return { valid: true, message: '' };
+    };
+
+    const validateContactNumber = (number: string) => {
+        // Remove spaces, dashes, and other non-numeric characters
+        const cleanNumber = number.replace(/\D/g, '');
+
+        if (cleanNumber.length !== 11) {
+            return { valid: false, message: 'Contact number must be exactly 11 digits.' };
+        }
+        if (!cleanNumber.startsWith('09')) {
+            return { valid: false, message: 'Contact number must start with 09.' };
+        }
+        return { valid: true, message: '' };
+    };
+
+    const validateEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return { valid: false, message: 'Please enter a valid email address.' };
+        }
+        return { valid: true, message: '' };
+    };
 
     useEffect(() => {
         if (!vacancyId) {
@@ -96,6 +146,10 @@ function ApplyPageContent() {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
+    const handleFileChange = (field: keyof typeof files, file: File | null) => {
+        setFiles(prev => ({ ...prev, [field]: file }));
+    };
+
     const addExperience = () => {
         setExperiences([...experiences, { employer: '', title: '', from: '', to: '', desc: '' }]);
     };
@@ -132,6 +186,12 @@ function ApplyPageContent() {
             return;
         }
 
+        // Validate required files
+        if (!files.pds || !files.transcript || !files.trainingCert || !files.employmentCert) {
+            setError('Please upload all required documents.');
+            return;
+        }
+
         setSubmitting(true);
         setError('');
 
@@ -143,7 +203,12 @@ function ApplyPageContent() {
             resumeUrl: '',
             coverLetter: formData.message,
             experiences: JSON.stringify(experiences.filter(e => e.employer || e.title)),
-            references: JSON.stringify(references.filter(r => r.name))
+            references: JSON.stringify(references.filter(r => r.name)),
+            // File names for reference
+            pdsFileName: files.pds?.name,
+            transcriptFileName: files.transcript?.name,
+            trainingCertFileName: files.trainingCert?.name,
+            employmentCertFileName: files.employmentCert?.name
         };
 
         try {
@@ -165,6 +230,74 @@ function ApplyPageContent() {
         } finally {
             setSubmitting(false);
         }
+    };
+
+    // File Upload Component
+    const FileUploadField = ({
+        label,
+        field,
+        accept = ".pdf,.doc,.docx",
+        required = false
+    }: {
+        label: string;
+        field: keyof typeof files;
+        accept?: string;
+        required?: boolean;
+    }) => {
+        const file = files[field];
+
+        return (
+            <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-900">
+                    {label} {required && <span className="text-red-600">*</span>}
+                </label>
+
+                {!file ? (
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <Upload className="w-8 h-8 mb-2 text-gray-500" />
+                            <p className="mb-2 text-sm text-gray-500">
+                                <span className="font-semibold">Click to upload</span> or drag and drop
+                            </p>
+                            <p className="text-xs text-gray-500">PDF, DOC, DOCX (MAX. 10MB)</p>
+                        </div>
+                        <input
+                            type="file"
+                            className="hidden"
+                            accept={accept}
+                            onChange={(e) => {
+                                const selectedFile = e.target.files?.[0];
+                                if (selectedFile) {
+                                    if (selectedFile.size > 10 * 1024 * 1024) {
+                                        alert('File size must be less than 10MB');
+                                        return;
+                                    }
+                                    handleFileChange(field, selectedFile);
+                                }
+                            }}
+                            required={required}
+                        />
+                    </label>
+                ) : (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                            <FileText className="w-5 h-5 text-blue-600" />
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">{file.name}</p>
+                                <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleFileChange(field, null)}
+                            className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     // Loading State
@@ -490,9 +623,41 @@ function ApplyPageContent() {
                             </div>
                         </section>
 
+                        {/* Required Documents */}
+                        <section className="border-t border-gray-200 pt-6">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">4) Required Documents</h2>
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                                <p className="text-sm text-yellow-800 font-semibold">
+                                    Please upload the following documents (PDF, DOC, or DOCX format, max 10MB each):
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <FileUploadField
+                                    label="1. Personal Data Sheet / Curriculum Vitae"
+                                    field="pds"
+                                    required
+                                />
+                                <FileUploadField
+                                    label="2. Certified True Copy of Transcript of Records"
+                                    field="transcript"
+                                    required
+                                />
+                                <FileUploadField
+                                    label="3. Certified True Copy of Certificate of Trainings Attended"
+                                    field="trainingCert"
+                                    required
+                                />
+                                <FileUploadField
+                                    label="4. Employment Certification"
+                                    field="employmentCert"
+                                    required
+                                />
+                            </div>
+                        </section>
+
                         {/* Work Experience */}
                         <section className="border-t border-gray-200 pt-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">4) Work Experience</h2>
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">5) Work Experience</h2>
                             {experiences.map((exp, idx) => (
                                 <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -531,7 +696,7 @@ function ApplyPageContent() {
 
                         {/* References */}
                         <section className="border-t border-gray-200 pt-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">5) Character References</h2>
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">6) Character References</h2>
                             {references.map((ref, idx) => (
                                 <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -570,7 +735,7 @@ function ApplyPageContent() {
 
                         {/* Additional Message */}
                         <section className="border-t border-gray-200 pt-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">6) Cover Letter / Additional Information</h2>
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">7) Cover Letter / Additional Information</h2>
                             <textarea
                                 name="message"
                                 value={formData.message}

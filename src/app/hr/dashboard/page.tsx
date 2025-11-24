@@ -1,7 +1,7 @@
 // src/app/hr/dashboard/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/common/PageHeader";
 import {
@@ -19,25 +19,6 @@ import {
 /* ---------------- Types ---------------- */
 type DeptKey = "CAS" | "CHS" | "CBPM" | "CCJ" | "CED" | "CCS";
 
-interface OpenRole {
-    id: string;
-    title: string;
-    department: DeptKey;
-    daysOpen: number;
-    postedDate: string;
-}
-
-interface TimeToFillRow {
-    department: DeptKey;
-    positionType: "Full-time" | "Part-time" | "Lecturer";
-    avgDays: number;
-}
-
-interface PipelineStage {
-    stage: "APPLICATIONS" | "SCREENING" | "INTERVIEWS" | "OFFERS" | "ACCEPTED";
-    count: number;
-}
-
 interface PendingActionCounts {
     toReview: number;
     offersToApprove: number;
@@ -52,7 +33,22 @@ type VacancyRequest = {
     createdAt: string;
 };
 
-/* ---------------- Demo data ---------------- */
+type DashboardMetrics = {
+    openByDept: Array<{ dept: DeptKey | string; open: number; avgDaysOpen: number }>;
+    pipeline: Array<{
+        stage: "APPLICATIONS" | "SCREENING" | "INTERVIEWS" | "OFFERS" | "ACCEPTED";
+        count: number;
+    }>;
+    pending: PendingActionCounts;
+    ttfByDept: Array<{ dept: DeptKey | string; avgDays: number }>;
+    filled: {
+        month: { value: number; target: number };
+        quarter: { value: number; target: number };
+        year: { value: number; target: number };
+    };
+};
+
+/* ---------------- UI helpers ---------------- */
 const COLORS = {
     tealA: "#0d9488",
     tealB: "#10b981",
@@ -62,43 +58,6 @@ const COLORS = {
     cyan: "#06b6d4",
 };
 
-const MOCK_OPEN_ROLES: OpenRole[] = [
-    { id: "v1", title: "Assistant Prof — Math", department: "CAS", daysOpen: 21, postedDate: "2025-09-30" },
-    { id: "v2", title: "Lecturer — Biology", department: "CAS", daysOpen: 13, postedDate: "2025-10-08" },
-    { id: "v3", title: "Instructor — Nursing", department: "CHS", daysOpen: 28, postedDate: "2025-09-23" },
-    { id: "v4", title: "Associate Prof — Business", department: "CBPM", daysOpen: 7, postedDate: "2025-10-14" },
-    { id: "v5", title: "Criminology Lecturer", department: "CCJ", daysOpen: 18, postedDate: "2025-10-03" },
-    { id: "v6", title: "Education Instructor", department: "CED", daysOpen: 9, postedDate: "2025-10-12" },
-    { id: "v7", title: "CompSci Lecturer", department: "CCS", daysOpen: 31, postedDate: "2025-09-20" },
-];
-
-const MOCK_TTF: TimeToFillRow[] = [
-    { department: "CAS", positionType: "Full-time", avgDays: 18 },
-    { department: "CAS", positionType: "Lecturer", avgDays: 12 },
-    { department: "CHS", positionType: "Full-time", avgDays: 19 },
-    { department: "CBPM", positionType: "Full-time", avgDays: 16 },
-    { department: "CCJ", positionType: "Lecturer", avgDays: 14 },
-    { department: "CED", positionType: "Part-time", avgDays: 10 },
-    { department: "CCS", positionType: "Lecturer", avgDays: 13 },
-];
-
-const MOCK_PIPELINE: PipelineStage[] = [
-    { stage: "APPLICATIONS", count: 420 },
-    { stage: "SCREENING", count: 335 },
-    { stage: "INTERVIEWS", count: 260 },
-    { stage: "OFFERS", count: 140 },
-    { stage: "ACCEPTED", count: 95 },
-];
-
-const MOCK_PENDING: PendingActionCounts = { toReview: 23, offersToApprove: 6, contractsToRenew: 4 };
-
-const MOCK_FILLED = {
-    month: { value: 12, target: 18 },
-    quarter: { value: 33, target: 45 },
-    year: { value: 92, target: 120 },
-};
-
-/* ---------------- Tiny components ---------------- */
 function Panel({
     title,
     subtitle,
@@ -118,7 +77,7 @@ function Panel({
 }
 
 function Progress({ value, target, label }: { value: number; target: number; label: string }) {
-    const pct = Math.min(100, Math.round((value / target) * 100));
+    const pct = Math.min(100, Math.round((value / Math.max(target, 1)) * 100));
     return (
         <div className="rounded-2xl border bg-white p-3 shadow-sm">
             <div className="flex items-center justify-between text-sm mb-1">
@@ -183,15 +142,43 @@ function StatTile({
 export default function HRDashboard() {
     const router = useRouter();
 
-    // Mock data (swap for API when ready)
-    const [openRoles] = useState<OpenRole[]>(MOCK_OPEN_ROLES);
-    const [ttfRows] = useState<TimeToFillRow[]>(MOCK_TTF);
-    const [pending] = useState<PendingActionCounts>(MOCK_PENDING);
+    // Live metrics
+    const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [err, setErr] = useState<string | null>(null);
 
     // 🔔 Vacancy Requests (from Deans)
     const [pendingRequests, setPendingRequests] = useState<number>(0);
 
-    // Fetch & poll vacancy requests
+    // Fetch HR dashboard metrics
+    useEffect(() => {
+        let alive = true;
+        const load = async () => {
+            try {
+                setErr(null);
+                setLoading(true);
+                const res = await fetch("/api/hr/dashboard", { cache: "no-store" });
+                if (!res.ok) throw new Error("Failed to load dashboard metrics");
+                const json: DashboardMetrics = await res.json();
+                if (alive) setMetrics(json);
+            } catch (e: any) {
+                if (alive) {
+                    setMetrics(null);
+                    setErr(e?.message || "Failed to load dashboard metrics");
+                }
+            } finally {
+                if (alive) setLoading(false);
+            }
+        };
+        load();
+        const id = setInterval(load, 30_000); // optional polling every 30s
+        return () => {
+            alive = false;
+            clearInterval(id);
+        };
+    }, []);
+
+    // Fetch & poll vacancy requests (your existing logic)
     useEffect(() => {
         let alive = true;
         const load = async () => {
@@ -213,63 +200,69 @@ export default function HRDashboard() {
         };
 
         load();
-        const id = setInterval(load, 30_000); // every 30s
+        const id = setInterval(load, 30_000);
         return () => {
             alive = false;
             clearInterval(id);
         };
     }, []);
 
-    // Aggregations
-    const openByDept = useMemo(() => {
-        const byDept: Record<DeptKey, { dept: DeptKey; open: number; avgDaysOpen: number }> = {
-            CAS: { dept: "CAS", open: 0, avgDaysOpen: 0 },
-            CHS: { dept: "CHS", open: 0, avgDaysOpen: 0 },
-            CBPM: { dept: "CBPM", open: 0, avgDaysOpen: 0 },
-            CCJ: { dept: "CCJ", open: 0, avgDaysOpen: 0 },
-            CED: { dept: "CED", open: 0, avgDaysOpen: 0 },
-            CCS: { dept: "CCS", open: 0, avgDaysOpen: 0 },
-        };
-        for (const r of openRoles) {
-            byDept[r.department].open++;
-            byDept[r.department].avgDaysOpen += r.daysOpen;
-        }
-        (Object.keys(byDept) as DeptKey[]).forEach((d) => {
-            if (byDept[d].open > 0) byDept[d].avgDaysOpen = +(byDept[d].avgDaysOpen / byDept[d].open).toFixed(1);
-        });
-        return Object.values(byDept);
-    }, [openRoles]);
-
-    const ttfByDept = useMemo(() => {
-        const map: Record<DeptKey, { dept: DeptKey; avgDays: number; items: TimeToFillRow[] }> = {
-            CAS: { dept: "CAS", avgDays: 0, items: [] },
-            CHS: { dept: "CHS", avgDays: 0, items: [] },
-            CBPM: { dept: "CBPM", avgDays: 0, items: [] },
-            CCJ: { dept: "CCJ", avgDays: 0, items: [] },
-            CED: { dept: "CED", avgDays: 0, items: [] },
-            CCS: { dept: "CCS", avgDays: 0, items: [] },
-        };
-        for (const row of ttfRows) {
-            map[row.department].items.push(row);
-            map[row.department].avgDays += row.avgDays;
-        }
-        (Object.keys(map) as DeptKey[]).forEach((d) => {
-            if (map[d].items.length) map[d].avgDays = +(map[d].avgDays / map[d].items.length).toFixed(1);
-        });
-        return Object.values(map);
-    }, [ttfRows]);
+    // Derived safely from metrics
+    const openByDept = metrics?.openByDept ?? [];
+    const ttfByDept = metrics?.ttfByDept ?? [];
+    const pipeline = metrics?.pipeline ?? [];
+    const pending = metrics?.pending ?? { toReview: 0, offersToApprove: 0, contractsToRenew: 0 };
+    const FILLED =
+        metrics?.filled ?? { month: { value: 0, target: 1 }, quarter: { value: 0, target: 1 }, year: { value: 0, target: 1 } };
 
     // chart colors
     const cellColor = (i: number) =>
         [COLORS.tealA, COLORS.tealB, COLORS.tealC, COLORS.cyan, COLORS.amber, COLORS.red][i % 6];
 
     // Navigate helpers
-    const gotoApplicants = (stage: PipelineStage["stage"]) =>
+    const gotoApplicants = (stage: DashboardMetrics["pipeline"][number]["stage"]) =>
         router.push(`/hr/applicants?stage=${encodeURIComponent(stage)}`);
-    const gotoOpenVacancies = (dept: DeptKey) =>
-        router.push(`/hr/vacancies?status=OPEN&dept=${encodeURIComponent(dept)}`);
-    const gotoTTFAnalytics = (dept: DeptKey) =>
-        router.push(`/hr/analytics/ttf?dept=${encodeURIComponent(dept)}`);
+    const gotoOpenVacancies = (dept: DeptKey | string) =>
+        router.push(`/hr/vacancies?status=OPEN&dept=${encodeURIComponent(String(dept))}`);
+    const gotoTTFAnalytics = (dept: DeptKey | string) =>
+        router.push(`/hr/analytics/ttf?dept=${encodeURIComponent(String(dept))}`);
+
+    if (loading && !metrics) {
+        return (
+            <div className="p-6 space-y-6">
+                <PageHeader title="HR Dashboard" subtitle="Efficiency, workload, and performance tracking of the hiring process" />
+                <div className="rounded-xl border bg-white p-12 text-center">
+                    <p className="text-gray-500">Loading dashboard metrics…</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (err) {
+        return (
+            <div className="p-6 space-y-6">
+                <PageHeader title="HR Dashboard" subtitle="Efficiency, workload, and performance tracking of the hiring process" />
+                <div className="rounded-xl border bg-white p-12 text-center">
+                    <p className="text-red-600 mb-4">Error: {err}</p>
+                    <button
+                        onClick={() => {
+                            setLoading(true);
+                            setErr(null);
+                            // simple refetch
+                            fetch("/api/hr/dashboard", { cache: "no-store" })
+                                .then((r) => r.json())
+                                .then((j) => setMetrics(j))
+                                .catch((e) => setErr(e?.message || "Failed to load dashboard metrics"))
+                                .finally(() => setLoading(false));
+                        }}
+                        className="rounded-md bg-blue-900 text-white px-4 py-2 hover:bg-blue-800"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 space-y-6">
@@ -293,7 +286,7 @@ export default function HRDashboard() {
                 </div>
             )}
 
-            {/* --- KPI tiles (Vacancy Requests moved beside Contracts) --- */}
+            {/* --- KPI tiles --- */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatTile
                     title="Applications to Review"
@@ -316,7 +309,6 @@ export default function HRDashboard() {
                     tone="sand"
                     onClick={() => router.push("/hr/renewals")}
                 />
-                {/* Vacancy Requests tile → Vacancies page filtered to DRAFT */}
                 <StatTile
                     title="Vacancy Requests"
                     value={pendingRequests}
@@ -329,9 +321,9 @@ export default function HRDashboard() {
             {/* Row: Progress + Expanded Pipeline */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="grid grid-cols-1 gap-3">
-                    <Progress label="Positions Filled — This Month" value={MOCK_FILLED.month.value} target={MOCK_FILLED.month.target} />
-                    <Progress label="Positions Filled — This Quarter" value={MOCK_FILLED.quarter.value} target={MOCK_FILLED.quarter.target} />
-                    <Progress label="Positions Filled — This Year" value={MOCK_FILLED.year.value} target={MOCK_FILLED.year.target} />
+                    <Progress label="Positions Filled — This Month" value={FILLED.month.value} target={FILLED.month.target} />
+                    <Progress label="Positions Filled — This Quarter" value={FILLED.quarter.value} target={FILLED.quarter.target} />
+                    <Progress label="Positions Filled — This Year" value={FILLED.year.value} target={FILLED.year.target} />
                 </div>
 
                 {/* Expanded across 2 columns */}
@@ -339,7 +331,7 @@ export default function HRDashboard() {
                     <Panel title="Hiring Pipeline Status" subtitle="Funnel from Applications → Accepted (click a bar to open Applicants)">
                         <div className="h-80">
                             <ResponsiveContainer>
-                                <BarChart data={MOCK_PIPELINE} barCategoryGap={20} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
+                                <BarChart data={pipeline} barCategoryGap={20} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
                                     <XAxis dataKey="stage" stroke="#64748b" interval={0} tick={{ fontSize: 12 }} height={40} tickMargin={8} />
                                     <YAxis stroke="#64748b" tick={{ fontSize: 12 }} />
@@ -351,7 +343,7 @@ export default function HRDashboard() {
                                         radius={[6, 6, 0, 0]}
                                         onClick={(e) => gotoApplicants((e?.payload as any)?.stage)}
                                     >
-                                        {MOCK_PIPELINE.map((_, i) => (
+                                        {pipeline.map((_, i) => (
                                             <Cell key={i} cursor="pointer" fill={cellColor(i)} />
                                         ))}
                                     </Bar>

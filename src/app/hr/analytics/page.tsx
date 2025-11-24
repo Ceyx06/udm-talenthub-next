@@ -1,510 +1,297 @@
 "use client";
-
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useMemo } from "react";
 import {
-    LineChart, Line,
-    BarChart, Bar,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell,
+    LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+    ResponsiveContainer, Area, AreaChart
 } from "recharts";
-import { Zap, Target, TrendingUp, AlertCircle } from "lucide-react";
+import { TrendingUp, Calendar, AlertCircle, Building2, Users, FileText } from "lucide-react";
 
-/* ========== Types ========== */
-type DeptKey = "All" | "CAS" | "CHS" | "CBPM" | "CCJ" | "CED" | "CCS";
+/* ---------- Types ---------- */
+type HistoryPoint = { month: string; actual: number; timestamp: number };
+type ForecastPoint = { month: string; predicted: number; lower: number; upper: number; timestamp: number };
+type DeptRow = { name: string; current: number; q1: number; q2: number; growth: string; risk: "low" | "medium" | "high" };
+type ContractRow = { month: string; expirations: number; expectedVacancies: number };
 
-type TTFPoint = { month: string; days: number };
-type DeptPerf = { dept: string; avgDays: number };
-type ProcessStep = { step: string; avgDays: number; status: "good" | "warning" | "critical" };
-type Prediction = { position: string; predictedDays: number; confidence: number };
-
-/* ========== Mock Data ========== */
-const DEPTS = ["CAS", "CHS", "CBPM", "CCJ", "CED", "CCS"];
-
-const TTF_TREND: TTFPoint[] = [
-    { month: "May", days: 17 },
-    { month: "Jun", days: 16 },
-    { month: "Jul", days: 18 },
-    { month: "Aug", days: 15 },
-    { month: "Sep", days: 16 },
-    { month: "Oct", days: 14 },
-];
-
-const DEPT_PERFORMANCE: DeptPerf[] = [
-    { dept: "CAS", avgDays: 16 },
-    { dept: "CHS", avgDays: 18 },
-    { dept: "CBPM", avgDays: 15 },
-    { dept: "CCJ", avgDays: 14 },
-    { dept: "CED", avgDays: 12 },
-    { dept: "CCS", avgDays: 13 },
-];
-
-const PROCESS_STEPS: ProcessStep[] = [
-    { step: "Post → Screen", avgDays: 3, status: "good" },
-    { step: "Screen → Interview", avgDays: 9, status: "warning" },
-    { step: "Interview → Evaluation", avgDays: 5, status: "good" },
-    { step: "Evaluation → Offer", avgDays: 12, status: "critical" },
-    { step: "Offer → Accept", avgDays: 5, status: "good" },
-];
-
-const AI_PREDICTIONS: Prediction[] = [
-    { position: "CAS - Assistant Prof", predictedDays: 18, confidence: 87 },
-    { position: "CHS - Lecturer", predictedDays: 14, confidence: 92 },
-    { position: "CED - Associate Prof", predictedDays: 22, confidence: 79 },
-];
-
-const COLORS = {
-    teal: "#0d9488",
-    cyan: "#06b6d4",
-    amber: "#f59e0b",
-    red: "#ef4444",
-    green: "#22c55e",
+type ApiPayload = {
+    history: HistoryPoint[];
+    forecast: ForecastPoint[];
+    departmentForecast: DeptRow[];
+    contracts: ContractRow[];
 };
 
-/* ========== Simple Components ========== */
-function BigStat({
-    label,
-    value,
-    color = "teal"
-}: {
-    label: string;
-    value: string | number;
-    color?: "teal" | "cyan" | "amber";
-}) {
-    const colors = {
-        teal: "bg-teal-600",
-        cyan: "bg-cyan-600",
-        amber: "bg-amber-500",
-    };
+export default function Page() {
+    const [payload, setPayload] = useState<ApiPayload | null>(null);
+    const [timeRange, setTimeRange] = useState<"3months" | "6months" | "12months">("6months");
+    const [loading, setLoading] = useState(true);
+    const [err, setErr] = useState<string | null>(null);
 
-    return (
-        <div className={`${colors[color]} text-white rounded-xl p-5`}>
-            <div className="text-sm opacity-90 mb-2">{label}</div>
-            <div className="text-4xl font-bold">{value}</div>
-        </div>
-    );
-}
-
-function Card({
-    title,
-    subtitle,
-    children
-}: {
-    title: string;
-    subtitle?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="bg-white rounded-xl border p-5">
-            <div className="mb-4">
-                <h3 className="font-semibold text-slate-800">{title}</h3>
-                {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function InfoBox({
-    type,
-    title,
-    message
-}: {
-    type: "info" | "tip" | "warning";
-    title: string;
-    message: string;
-}) {
-    const styles = {
-        info: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-900" },
-        tip: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-900" },
-        warning: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-900" },
-    };
-    const s = styles[type];
-
-    return (
-        <div className={`${s.bg} border ${s.border} rounded-xl p-4`}>
-            <div className={`font-semibold text-sm ${s.text}`}>{title}</div>
-            <div className={`text-xs ${s.text} mt-1 opacity-90`}>{message}</div>
-        </div>
-    );
-}
-
-/* ========== Page ========== */
-export default function HRAnalytics() {
-    const router = useRouter();
-    const [dept, setDept] = useState<DeptKey>("All");
-    const [view, setView] = useState<"overview" | "predictions" | "process">("overview");
-
-    const avgTTF = useMemo(() => {
-        const total = TTF_TREND.reduce((sum, d) => sum + d.days, 0);
-        return Math.round(total / TTF_TREND.length);
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                setLoading(true);
+                setErr(null);
+                // matches your API path
+                const res = await fetch("/api/hr/analytics?horizon=12", { cache: "no-store" });
+                if (!res.ok) throw new Error("Failed to load analytics");
+                const json = await res.json() as ApiPayload;
+                if (alive) setPayload(json);
+            } catch (e: any) {
+                if (alive) setErr(e?.message || "Failed to load analytics");
+            } finally {
+                if (alive) setLoading(false);
+            }
+        })();
+        return () => { alive = false; };
     }, []);
 
-    const criticalSteps = useMemo(() => {
-        return PROCESS_STEPS.filter(s => s.status === "critical").length;
-    }, []);
+    const horizon = timeRange === "3months" ? 3 : timeRange === "6months" ? 6 : 12;
+    const history6 = useMemo(() => (payload?.history ?? []).slice(-6), [payload?.history]);
+    const forecastH = useMemo(() => (payload?.forecast ?? []).slice(0, Math.max(0, horizon)), [payload?.forecast, horizon]);
+    const combinedData = useMemo(() => [
+        ...history6.map(m => ({ ...m, type: "actual" as const })),
+        ...forecastH.map(f => ({ ...f, type: "forecast" as const })),
+    ], [history6, forecastH]);
+
+    const totalPredicted = useMemo(() => forecastH.reduce((s, f) => s + (f?.predicted ?? 0), 0), [forecastH]);
+    const avgMonthly = forecastH.length ? Math.round(totalPredicted / forecastH.length) : 0;
+    const peakVal = forecastH.length ? Math.max(...forecastH.map(f => f.predicted)) : 0;
+    const peakMonth = forecastH.find(f => f.predicted === peakVal)?.month ?? "—";
+
+    if (loading && !payload) return <div className="p-8">Loading…</div>;
+    if (err) return (
+        <div className="p-8">
+            <p className="text-red-600 mb-3">Error: {err}</p>
+            <button className="rounded-md bg-indigo-600 text-white px-4 py-2" onClick={() => location.reload()}>Retry</button>
+        </div>
+    );
 
     return (
-        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900">HR Analytics</h1>
-                    <p className="text-slate-600 mt-1">Insights to improve your hiring process</p>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+            <div className="max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                        <TrendingUp className="text-indigo-600" size={32} />
+                        HR Analytics — Vacancy Forecast
+                    </h1>
+                    <p className="text-gray-600 mt-2">DB-backed predictions for strategic workforce planning</p>
                 </div>
-                <button
-                    onClick={() => router.push("/hr/dashboard")}
-                    className="px-4 py-2 bg-white border rounded-lg text-sm hover:bg-slate-50"
-                >
-                    ← Back to Dashboard
-                </button>
-            </div>
 
-            {/* View Tabs */}
-            <div className="flex gap-2 bg-white rounded-xl p-1 border w-fit">
-                <button
-                    onClick={() => setView("overview")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${view === "overview"
-                            ? "bg-teal-600 text-white"
-                            : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                >
-                    <TrendingUp size={16} className="inline mr-2" />
-                    Overview
-                </button>
-                <button
-                    onClick={() => setView("predictions")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${view === "predictions"
-                            ? "bg-teal-600 text-white"
-                            : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                >
-                    <Zap size={16} className="inline mr-2" />
-                    AI Predictions
-                </button>
-                <button
-                    onClick={() => setView("process")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${view === "process"
-                            ? "bg-teal-600 text-white"
-                            : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                >
-                    <Target size={16} className="inline mr-2" />
-                    Process Analysis
-                </button>
-            </div>
-
-            {/* OVERVIEW TAB */}
-            {view === "overview" && (
-                <>
-                    {/* Top Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <BigStat label="Average Time to Fill" value={`${avgTTF} days`} color="teal" />
-                        <BigStat label="Fastest Department" value="CED (12d)" color="cyan" />
-                        <BigStat label="Improvement This Month" value="↓ 2 days" color="teal" />
-                    </div>
-
-                    {/* Charts */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card
-                            title="Time to Fill Trend"
-                            subtitle="How long it takes to fill positions over time"
-                        >
-                            <div className="h-72">
-                                <ResponsiveContainer>
-                                    <LineChart data={TTF_TREND}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                        <XAxis dataKey="month" stroke="#64748b" />
-                                        <YAxis stroke="#64748b" />
-                                        <Tooltip />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="days"
-                                            stroke={COLORS.teal}
-                                            strokeWidth={3}
-                                            dot={{ r: 5, fill: COLORS.teal }}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-3">
-                                ✓ Good news: You're getting faster at hiring
-                            </p>
-                        </Card>
-
-                        <Card
-                            title="Department Comparison"
-                            subtitle="Average days to fill by department"
-                        >
-                            <div className="h-72">
-                                <ResponsiveContainer>
-                                    <BarChart data={DEPT_PERFORMANCE}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                        <XAxis dataKey="dept" stroke="#64748b" />
-                                        <YAxis stroke="#64748b" />
-                                        <Tooltip />
-                                        <Bar dataKey="avgDays" fill={COLORS.teal} radius={[6, 6, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-3">
-                                Lower is better. Target: 15 days or less
-                            </p>
-                        </Card>
-                    </div>
-                </>
-            )}
-
-            {/* AI PREDICTIONS TAB */}
-            {view === "predictions" && (
-                <>
-                    <InfoBox
-                        type="info"
-                        title="How AI Predictions Work"
-                        message="Our system analyzes past hiring data to predict how long new positions will take to fill. Higher confidence = more accurate prediction."
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {AI_PREDICTIONS.map((pred, i) => (
-                            <div key={i} className="bg-white rounded-xl border p-5">
-                                <div className="text-sm text-slate-600 mb-2">{pred.position}</div>
-                                <div className="text-3xl font-bold text-teal-600 mb-3">
-                                    {pred.predictedDays} days
-                                </div>
-                                <div className="text-xs text-slate-500 mb-2">Confidence</div>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-teal-500"
-                                            style={{ width: `${pred.confidence}%` }}
-                                        />
-                                    </div>
-                                    <span className="text-sm font-semibold text-slate-700">
-                                        {pred.confidence}%
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <Card title="What This Means for You">
-                        <div className="space-y-3">
-                            <div className="flex gap-3 p-3 bg-teal-50 rounded-lg">
-                                <div className="text-2xl">📅</div>
-                                <div>
-                                    <div className="font-medium text-slate-800 text-sm">Plan Ahead</div>
-                                    <div className="text-xs text-slate-600 mt-1">
-                                        If you need a position filled by a certain date, post it {avgTTF + 5} days before
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 p-3 bg-cyan-50 rounded-lg">
-                                <div className="text-2xl">⚡</div>
-                                <div>
-                                    <div className="font-medium text-slate-800 text-sm">Set Realistic Expectations</div>
-                                    <div className="text-xs text-slate-600 mt-1">
-                                        Senior positions typically take 20-25 days, lecturer positions 12-15 days
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                </>
-            )}
-
-            {/* PROCESS ANALYSIS TAB */}
-            {view === "process" && (
-                <>
-                    <InfoBox
-                        type="tip"
-                        title="Process Mining Analysis"
-                        message="This shows where time is being spent in your hiring process. Red = needs improvement, Yellow = monitor, Green = doing well."
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <BigStat
-                            label="Total Process Time"
-                            value={`${PROCESS_STEPS.reduce((sum, s) => sum + s.avgDays, 0)}d`}
-                            color="teal"
-                        />
-                        <BigStat
-                            label="Slowest Step"
-                            value="Evaluation → Offer"
-                            color="amber"
-                        />
-                        <BigStat
-                            label="Steps Needing Attention"
-                            value={criticalSteps}
-                            color="amber"
-                        />
-                    </div>
-
-                    <Card
-                        title="Where Your Time Goes"
-                        subtitle="Average days spent at each hiring stage"
-                    >
-                        <div className="space-y-4">
-                            {PROCESS_STEPS.map((step, i) => {
-                                const statusColors = {
-                                    good: { bg: "bg-green-50", bar: "bg-green-500", text: "text-green-700" },
-                                    warning: { bg: "bg-amber-50", bar: "bg-amber-500", text: "text-amber-700" },
-                                    critical: { bg: "bg-red-50", bar: "bg-red-500", text: "text-red-700" },
-                                };
-                                const colors = statusColors[step.status];
-
-                                return (
-                                    <div key={i} className={`${colors.bg} rounded-lg p-4`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="font-medium text-slate-800 text-sm">{step.step}</span>
-                                            <span className={`font-bold ${colors.text}`}>{step.avgDays} days</span>
-                                        </div>
-                                        <div className="h-2 bg-white/50 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full ${colors.bar}`}
-                                                style={{ width: `${(step.avgDays / 12) * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </Card>
-
-                    <Card title="How to Improve" subtitle="Action items to speed up hiring">
-                        <div className="space-y-3">
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-red-100 text-red-700 rounded-lg p-2">
-                                        <AlertCircle size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-sm text-red-900">Critical: Speed Up Committee Decisions</div>
-                                        <div className="text-xs text-red-800 mt-1">
-                                            Evaluation → Offer takes 12 days (target: 7 days). Set firm deadlines for committee reviews.
-                                        </div>
-                                        <div className="text-xs font-semibold text-red-700 mt-2">
-                                            💰 Potential savings: 5 days per hire
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-amber-100 text-amber-700 rounded-lg p-2">
-                                        <Target size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-sm text-amber-900">Standardize Interview Scheduling</div>
-                                        <div className="text-xs text-amber-800 mt-1">
-                                            Screen → Interview takes 9 days. Use calendar automation to reduce to 6 days.
-                                        </div>
-                                        <div className="text-xs font-semibold text-amber-700 mt-2">
-                                            💰 Potential savings: 3 days per hire
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-green-100 text-green-700 rounded-lg p-2">
-                                        <Zap size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-sm text-green-900">Quick Wins Working Well</div>
-                                        <div className="text-xs text-green-800 mt-1">
-                                            Post → Screen (3d) and Interview → Evaluation (5d) are efficient. Keep doing what you're doing!
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card title="Time Breakdown">
-                            <div className="h-64">
-                                <ResponsiveContainer>
-                                    <PieChart>
-                                        <Pie
-                                            data={PROCESS_STEPS.map(s => ({
-                                                name: s.step,
-                                                value: s.avgDays
-                                            }))}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={(entry: any) => `${(entry.percent * 100).toFixed(0)}%`}
-                                            outerRadius={80}
-                                            dataKey="value"
-                                        >
-                                            {PROCESS_STEPS.map((step, i) => (
-                                                <Cell
-                                                    key={i}
-                                                    fill={
-                                                        step.status === "critical" ? COLORS.red :
-                                                            step.status === "warning" ? COLORS.amber :
-                                                                COLORS.green
-                                                    }
-                                                />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-
-                        <Card title="Your Process Health">
-                            <div className="space-y-6 py-4">
-                                <div className="text-center">
-                                    <div className="text-5xl font-bold text-teal-600 mb-2">B+</div>
-                                    <div className="text-sm text-slate-600">Overall Grade</div>
-                                    <div className="text-xs text-slate-500 mt-1">Good, but room to improve</div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4 text-center">
-                                    <div className="bg-green-50 rounded-lg p-3">
-                                        <div className="text-2xl font-bold text-green-600">3</div>
-                                        <div className="text-xs text-slate-600 mt-1">Steps on track</div>
-                                    </div>
-                                    <div className="bg-amber-50 rounded-lg p-3">
-                                        <div className="text-2xl font-bold text-amber-600">2</div>
-                                        <div className="text-xs text-slate-600 mt-1">Need attention</div>
-                                    </div>
-                                </div>
-
-                                <div className="text-xs text-slate-500 text-center">
-                                    Industry average: 36 days<br />
-                                    Your average: {PROCESS_STEPS.reduce((sum, s) => sum + s.avgDays, 0)} days ✓
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-                </>
-            )}
-
-            {/* Bottom Help */}
-            <div className="bg-white rounded-xl border p-5">
-                <div className="flex items-start gap-3">
-                    <div className="bg-slate-100 text-slate-600 rounded-lg p-2">
-                        <AlertCircle size={20} />
-                    </div>
-                    <div>
-                        <div className="font-semibold text-slate-800 text-sm mb-2">Quick Guide</div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <span className="font-medium text-slate-800">Overview:</span> See trends and compare departments
+                                <p className="text-sm text-gray-600">Next Quarter Total</p>
+                                <p className="text-2xl font-bold text-indigo-600 mt-1">
+                                    {forecastH.slice(0, 3).reduce((s, f) => s + f.predicted, 0)}
+                                </p>
                             </div>
-                            <div>
-                                <span className="font-medium text-slate-800">AI Predictions:</span> Forecast how long new positions will take
-                            </div>
-                            <div>
-                                <span className="font-medium text-slate-800">Process Analysis:</span> Find bottlenecks and fix them
-                            </div>
+                            <Calendar className="text-indigo-400" size={32} />
                         </div>
+                        <p className="text-xs text-gray-500 mt-2">Expected vacancies (next 3 months)</p>
                     </div>
+
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600">Avg Monthly</p>
+                                <p className="text-2xl font-bold text-blue-600 mt-1">{avgMonthly}</p>
+                            </div>
+                            <FileText className="text-blue-400" size={32} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Predicted average per month</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600">Peak Month</p>
+                                <p className="text-2xl font-bold text-orange-600 mt-1">{peakVal}</p>
+                            </div>
+                            <AlertCircle className="text-orange-400" size={32} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{peakMonth}</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600">Confidence</p>
+                                <p className="text-2xl font-bold text-green-600 mt-1">—</p>
+                            </div>
+                            <TrendingUp className="text-green-400" size={32} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Hook real model metrics later</p>
+                    </div>
+                </div>
+
+                {/* Time Range Selector */}
+                <div className="mb-6 flex gap-2">
+                    {(["3months", "6months", "12months"] as const).map(range => (
+                        <button key={range}
+                            onClick={() => setTimeRange(range)}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${timeRange === range ? "bg-indigo-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"
+                                }`}>
+                            {range === "3months" ? "3 Months" : range === "6months" ? "6 Months" : "1 Year"}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Main Forecast Chart */}
+                <div className="bg-white rounded-lg shadow p-6 mb-6">
+                    <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                        <TrendingUp size={20} className="text-indigo-600" />
+                        Vacancy Demand Forecast
+                    </h2>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <AreaChart data={combinedData}>
+                            <defs>
+                                <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
+                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1} />
+                                </linearGradient>
+                                <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
+                                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="month" stroke="#6b7280" />
+                            <YAxis stroke="#6b7280" />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}
+                                formatter={(value: any, name: string) => {
+                                    if (name === "upper") return [value as number, "Upper Bound"];
+                                    if (name === "lower") return [value as number, "Lower Bound"];
+                                    if (name === "predicted") return [value as number, "Predicted"];
+                                    return [value as number, "Actual"];
+                                }}
+                            />
+                            <Legend />
+                            <Area type="monotone" dataKey="actual" stroke="#6366f1" fill="url(#colorActual)" name="Historical" />
+                            <Area type="monotone" dataKey="predicted" stroke="#f59e0b" fill="url(#colorForecast)" name="Forecast" />
+                            <Area type="monotone" dataKey="upper" stroke="#fbbf24" strokeDasharray="3 3" fill="none" name="Upper Bound" />
+                            <Area type="monotone" dataKey="lower" stroke="#fbbf24" strokeDasharray="3 3" fill="none" name="Lower Bound" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    {/* Department Forecast */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <Building2 size={20} className="text-indigo-600" />
+                            Department Breakdown
+                        </h2>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={payload?.departmentForecast ?? []}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} stroke="#6b7280" />
+                                <YAxis stroke="#6b7280" />
+                                <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }} />
+                                <Legend />
+                                <Bar dataKey="current" fill="#6366f1" name="Current" />
+                                <Bar dataKey="q1" fill="#f59e0b" name="Next Quarter" />
+                                <Bar dataKey="q2" fill="#10b981" name="Q2 Forecast" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Contract Expirations */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                            <Users size={20} className="text-indigo-600" />
+                            Contract Expirations Impact
+                        </h2>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <LineChart data={payload?.contracts ?? []}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="month" stroke="#6b7280" />
+                                <YAxis stroke="#6b7280" />
+                                <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }} />
+                                <Legend />
+                                <Line type="monotone" dataKey="expirations" stroke="#ef4444" strokeWidth={2} name="Expiring Contracts" />
+                                <Line type="monotone" dataKey="expectedVacancies" stroke="#f59e0b" strokeWidth={2} name="Expected Vacancies" />
+                            </LineChart>
+                        </ResponsiveContainer>
+                        <p className="text-sm text-gray-600 mt-3">
+                            Assumes 60% conversion to vacancies (tune in the API)
+                        </p>
+                    </div>
+                </div>
+
+                {/* Risk Table */}
+                <div className="bg-white rounded-lg shadow p-6">
+                    <h2 className="text-xl font-semibold mb-4">Department Risk Analysis</h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-200">
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Department</th>
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Current Open</th>
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Q1 Predicted</th>
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Growth</th>
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Risk Level</th>
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(payload?.departmentForecast ?? []).map((dept, i) => (
+                                    <tr key={`${dept.name}-${i}`} className="border-b border-gray-100 hover:bg-gray-50">
+                                        <td className="py-3 px-4 font-medium">{dept.name}</td>
+                                        <td className="py-3 px-4">{dept.current}</td>
+                                        <td className="py-3 px-4 font-semibold text-indigo-600">{dept.q1}</td>
+                                        <td className="py-3 px-4"><span className="text-green-600 font-medium">{dept.growth}</span></td>
+                                        <td className="py-3 px-4">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${dept.risk === "high" ? "bg-red-100 text-red-700" :
+                                                    dept.risk === "medium" ? "bg-yellow-100 text-yellow-700" :
+                                                        "bg-green-100 text-green-700"
+                                                }`}>
+                                                {dept.risk.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            {dept.risk === "high" ? (
+                                                <button className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Plan Recruitment →</button>
+                                            ) : dept.risk === "medium" ? (
+                                                <button className="text-sm text-gray-600 hover:text-gray-800">Monitor</button>
+                                            ) : null}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {(payload?.departmentForecast ?? []).length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="py-6 px-4 text-center text-gray-500">No department data available.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Insights */}
+                <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg shadow p-6 mt-6 text-white">
+                    <h3 className="text-lg font-semibold mb-3">🎯 Strategic Insights</h3>
+                    <ul className="space-y-2">
+                        <li className="flex items-start gap-2">
+                            <span className="text-yellow-300 mt-1">•</span>
+                            <span><strong>Peak hiring period:</strong> {peakMonth} — start recruitment 60 days earlier</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-yellow-300 mt-1">•</span>
+                            <span><strong>Computer Science:</strong> If trending high, consider a standing search committee</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-yellow-300 mt-1">•</span>
+                            <span><strong>Contract renewals:</strong> {(payload?.contracts ?? [])[0]?.expirations ?? 0} expiring this month — proactive retention recommended</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-yellow-300 mt-1">•</span>
+                            <span><strong>Budget planning:</strong> Allocate for {totalPredicted} positions over next {timeRange === "3months" ? "3" : timeRange === "6months" ? "6" : "12"} months</span>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>

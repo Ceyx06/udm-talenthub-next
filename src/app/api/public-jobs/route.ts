@@ -47,7 +47,7 @@ export async function GET() {
                     daysSincePosted === 1 ? 'Yesterday' :
                         `${daysSincePosted} days ago`,
                 status: vacancy.status,
-                link: `/apply/${vacancy.id}`
+                link: `/apply?vacancy=${vacancy.id}` // ✅ Fixed: Now uses query parameter
             };
         });
 
