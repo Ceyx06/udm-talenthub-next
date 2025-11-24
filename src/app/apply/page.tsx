@@ -85,6 +85,41 @@ function ApplyPageContent() {
     { name: '', position: '', company: '', email: '', contactNumber: '' }
   ]);
 
+  // Calculate age from date of birth
+  const calculateAge = (dob: string): number => {
+    if (!dob) return 0;
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  // Get maximum date (today)
+  const getMaxDate = (): string => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  // Get minimum date (for 21 years old minimum)
+  const getMinDate = (): string => {
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    return minDate.toISOString().split('T')[0];
+  };
+
+  // Get suggested max date for legal age (21 years ago)
+  const getSuggestedMaxDate = (): string => {
+    const today = new Date();
+    const suggestedDate = new Date(today.getFullYear() - 21, today.getMonth(), today.getDate());
+    return suggestedDate.toISOString().split('T')[0];
+  };
+
   useEffect(() => {
     if (!vacancyId) {
       setPageError('No vacancy ID provided');
@@ -127,9 +162,21 @@ function ApplyPageContent() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    // Special validation for date of birth
+    if (name === 'dob') {
+      const age = calculateAge(value);
+      if (age < 21 && value) {
+        setError('Applicant must be at least 21 years old to apply for a professorial position.');
+      } else {
+        setError('');
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }));
   };
 
@@ -192,6 +239,13 @@ function ApplyPageContent() {
     
     if (!job) {
       setError('Job information not loaded');
+      return;
+    }
+
+    // Validate age
+    const age = calculateAge(formData.dob);
+    if (age < 21) {
+      setError('Applicant must be at least 21 years old to apply for a professorial position.');
       return;
     }
 
@@ -350,6 +404,8 @@ function ApplyPageContent() {
     );
   }
 
+  const currentAge = calculateAge(formData.dob);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-8">
@@ -439,19 +495,35 @@ function ApplyPageContent() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date of Birth <span className="text-red-500">*</span>
+                  <span className="text-xs text-gray-500 ml-2">(Must be 21 years or older)</span>
+                </label>
                 <input
                   type="date"
                   name="dob"
+                  required
                   value={formData.dob}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  min={getMinDate()}
+                  max={getMaxDate()}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    formData.dob && currentAge < 21 ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
+                {formData.dob && (
+                  <p className={`mt-1 text-sm ${currentAge >= 21 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentAge >= 21 ? `✓ Age: ${currentAge} years old` : `✗ Age: ${currentAge} years old (Minimum: 21 years)`}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender <span className="text-red-500">*</span>
+                </label>
                 <select
                   name="gender"
+                  required
                   value={formData.gender}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -466,9 +538,12 @@ function ApplyPageContent() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Civil Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Civil Status <span className="text-red-500">*</span>
+                </label>
                 <select
                   name="civilStatus"
+                  required
                   value={formData.civilStatus}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -481,10 +556,13 @@ function ApplyPageContent() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nationality <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="nationality"
+                  required
                   value={formData.nationality}
                   onChange={handleInputChange}
                   placeholder="e.g., Filipino"
@@ -499,20 +577,26 @@ function ApplyPageContent() {
             <h2 className="text-xl font-semibold mb-4 text-gray-900">2) Address Information</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Present Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Present Address <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="presentAddress"
+                  required
                   value={formData.presentAddress}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Permanent Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Permanent Address <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="permanentAddress"
+                  required
                   value={formData.permanentAddress}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -521,17 +605,55 @@ function ApplyPageContent() {
             </div>
           </section>
 
-          {/* Education Section */}
+          {/* Position & Employment Type Section */}
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">3) Education</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">3) Position & Employment Type</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Highest Degree
+                  Desired Position <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="desiredPosition"
+                  required
+                  value={formData.desiredPosition}
+                  onChange={handleInputChange}
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Employment Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="employmentType"
+                  required
+                  value={formData.employmentType}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Full-time">Full-time</option>
+                  <option value="Part-time">Part-time</option>
+                  <option value="Contractual">Contractual</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* Education Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">4) Education</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Highest Degree <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   name="highestDegree"
+                  required
                   value={formData.highestDegree}
                   onChange={handleInputChange}
                   placeholder="e.g., Bachelor of Science in Computer Science"
@@ -599,7 +721,7 @@ function ApplyPageContent() {
           {/* Work Experience Section */}
           <section>
             <h2 className="text-xl font-semibold mb-2 text-gray-900">
-              4) Work Experience (≥ 2 years relevant)
+              5) Work Experience (≥ 2 years relevant) <span className="text-red-500">*</span>
             </h2>
             <p className="text-sm text-gray-600 mb-4">Add past roles with dates and key responsibilities.</p>
             
@@ -640,7 +762,7 @@ function ApplyPageContent() {
                       value={exp.from}
                       onChange={(e) => updateExperience(index, 'from', e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="dd-----yyyy"
+                      placeholder="MM/YYYY"
                     />
                   </div>
                   <div>
@@ -652,20 +774,20 @@ function ApplyPageContent() {
                       value={exp.to}
                       onChange={(e) => updateExperience(index, 'to', e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="dd-----yyyy"
+                      placeholder="MM/YYYY"
                     />
                   </div>
                 </div>
 
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Key Responsibilities
+                    Key Responsibilities <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={exp.responsibilities}
                     onChange={(e) => updateExperience(index, 'responsibilities', e.target.value)}
                     rows={3}
-                    placeholder="Short description"
+                    placeholder="Describe your main responsibilities and achievements"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -676,7 +798,7 @@ function ApplyPageContent() {
                     onClick={() => removeExperience(index)}
                     className="text-sm text-red-600 hover:text-red-800 font-medium"
                   >
-                    Remove
+                    Remove Experience
                   </button>
                 )}
               </div>
@@ -694,9 +816,9 @@ function ApplyPageContent() {
           {/* Character References Section */}
           <section>
             <h2 className="text-xl font-semibold mb-2 text-gray-900">
-              5) Character References
+              6) Character References <span className="text-red-500">*</span>
             </h2>
-            <p className="text-sm text-gray-600 mb-4">Minimum of one professional reference is recommended.</p>
+            <p className="text-sm text-gray-600 mb-4">At least one professional reference is required.</p>
             
             {references.map((ref, index) => (
               <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
@@ -763,7 +885,7 @@ function ApplyPageContent() {
                     onClick={() => removeReference(index)}
                     className="text-sm text-red-600 hover:text-red-800 font-medium"
                   >
-                    Remove
+                    Remove Reference
                   </button>
                 )}
               </div>
@@ -853,6 +975,7 @@ function ApplyPageContent() {
                   checked={consentChecked}
                   onChange={(e) => setConsentChecked(e.target.checked)}
                   className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  required
                 />
                 <label htmlFor="consent" className="text-sm text-gray-700">
                   I certify that the information provided is true and correct, and I consent to the collection and processing of my personal data in accordance with the Data Privacy Act of 2012 (RA 10173). <span className="text-red-500">*</span>
@@ -865,7 +988,7 @@ function ApplyPageContent() {
           <div className="flex gap-4 pt-4">
             <button
               type="submit"
-              disabled={loading || !consentChecked}
+              disabled={loading || !consentChecked || (formData.dob !== '' && currentAge < 21)}
               className="flex-1 bg-blue-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? 'Submitting...' : 'Submit Application'}
