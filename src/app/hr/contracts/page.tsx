@@ -28,6 +28,7 @@ export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   // Check authentication
   useEffect(() => {
@@ -63,14 +64,27 @@ export default function ContractsPage() {
         const updatedContracts = contractsList.map((contract: Contract) => {
           const endDate = new Date(contract.endDate);
           const today = new Date();
+          today.setHours(0, 0, 0, 0); // Reset time for accurate comparison
           const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-          if (endDate < today && contract.status === 'Active') {
-            return { ...contract, status: 'Expired' };
-          } else if (daysUntilExpiry <= 90 && daysUntilExpiry > 0 && contract.status === 'Active') {
-            return { ...contract, status: 'Pending Renewal' };
+          let status = contract.status || 'Active';
+
+          // Convert APPROVED status to Active (legacy status from Contract Queue)
+          if (status === 'APPROVED' || status === 'Approved') {
+            status = 'Active';
           }
-          return contract;
+
+          // Auto-update status based on dates
+          if (endDate < today) {
+            status = 'Expired';
+          } else if (daysUntilExpiry <= 90 && daysUntilExpiry > 0 && status === 'Active') {
+            status = 'Pending Renewal';
+          } else if (status !== 'Expired' && status !== 'Pending Renewal' && status !== 'Terminated') {
+            // If status is anything other than these specific statuses, set to Active
+            status = 'Active';
+          }
+
+          return { ...contract, status };
         });
 
         setContracts(updatedContracts);
@@ -86,6 +100,11 @@ export default function ContractsPage() {
       fetchContracts();
     }
   }, [user]);
+
+  const handleEdit = (contract: Contract) => {
+    // Navigate to edit page with contract data
+    router.push(`/hr/contracts/edit/${contract.id}`);
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this contract?')) {
@@ -109,9 +128,31 @@ export default function ContractsPage() {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    const statusLower = status.toLowerCase();
+    
+    if (statusLower === 'active') {
+      return <Badge tone="green">Active</Badge>;
+    } else if (statusLower === 'expired') {
+      return <Badge tone="red">Expired</Badge>;
+    } else if (statusLower === 'pending renewal') {
+      return <Badge tone="yellow">Pending Renewal</Badge>;
+    } else if (statusLower === 'terminated') {
+      return <Badge tone="red">Terminated</Badge>;
+    } else {
+      // For any other status (like APPROVED, Pending, etc.), show as Active
+      return <Badge tone="green">Active</Badge>;
+    }
+  };
+
   const activeContracts = contracts.filter(c => c.status === 'Active').length;
   const expiredContracts = contracts.filter(c => c.status === 'Expired').length;
   const pendingRenewals = contracts.filter(c => c.status === 'Pending Renewal').length;
+
+  // Filter contracts based on selected filter
+  const filteredContracts = filterStatus === 'all' 
+    ? contracts 
+    : contracts.filter(c => c.status.toLowerCase() === filterStatus.toLowerCase());
 
   if (loading) {
     return (
@@ -129,16 +170,65 @@ export default function ContractsPage() {
       <PageHeader title="Contracts" subtitle="Manage faculty contracts" />
       
       <div className="grid grid-cols-3 gap-4">
-        <StatCard title="Active Contracts" value={activeContracts} sub="Currently active" />
-        <StatCard title="Expired Contracts" value={expiredContracts} sub="Requires attention" />
-        <StatCard title="Pending Renewals" value={pendingRenewals} sub="Up for renewal" />
+        <StatCard title="Active Contracts" value={activeContracts} />
+        <StatCard title="Expired Contracts" value={expiredContracts} />
+        <StatCard title="Pending Renewals" value={pendingRenewals} />
+      </div>
+
+      {/* Filter buttons */}
+      <div className="flex gap-2 items-center">
+        <span className="text-sm font-medium text-gray-700">Filter by status:</span>
+        <button
+          onClick={() => setFilterStatus('all')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            filterStatus === 'all'
+              ? 'bg-teal-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          All ({contracts.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('active')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            filterStatus === 'active'
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Active ({activeContracts})
+        </button>
+        <button
+          onClick={() => setFilterStatus('pending renewal')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            filterStatus === 'pending renewal'
+              ? 'bg-yellow-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Pending Renewal ({pendingRenewals})
+        </button>
+        <button
+          onClick={() => setFilterStatus('expired')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            filterStatus === 'expired'
+              ? 'bg-red-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Expired ({expiredContracts})
+        </button>
       </div>
 
       <div className="rounded-xl border bg-white overflow-hidden mt-2">
-        {contracts.length === 0 ? (
+        {filteredContracts.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <p>No contracts found</p>
-            <p className="text-sm mt-2">Contracts will appear here after approving applicants in the Contract Queue</p>
+            {filterStatus !== 'all' ? (
+              <p className="text-sm mt-2">No contracts with status "{filterStatus}"</p>
+            ) : (
+              <p className="text-sm mt-2">Contracts will appear here after approving applicants in the Contract Queue</p>
+            )}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -157,9 +247,9 @@ export default function ContractsPage() {
               </tr>
             </thead>
             <tbody>
-              {contracts.map(contract => (
-                <tr key={contract.id} className="border-t">
-                  <td className="p-3">{contract.contractNo}</td>
+              {filteredContracts.map(contract => (
+                <tr key={contract.id} className="border-t hover:bg-gray-50">
+                  <td className="p-3 font-medium">{contract.contractNo}</td>
                   <td>{contract.facultyName}</td>
                   <td><Badge tone="gray">{contract.college}</Badge></td>
                   <td>{contract.jobTitle}</td>
@@ -168,20 +258,20 @@ export default function ContractsPage() {
                   <td>{new Date(contract.endDate).toLocaleDateString()}</td>
                   <td>₱{contract.ratePerHour.toFixed(2)}</td>
                   <td>
-                    {contract.status === "Active" && <Badge tone="green">Active</Badge>}
-                    {contract.status === "Expired" && <Badge tone="red">Expired</Badge>}
-                    {contract.status === "Pending Renewal" && <Badge tone="yellow">Pending Renewal</Badge>}
+                    {getStatusBadge(contract.status)}
                   </td>
                   <td className="pr-3 text-right space-x-2">
                     <button 
-                      className="rounded-md border px-2 py-1"
-                      onClick={() => alert(`Edit contract ${contract.contractNo}`)}
+                      className="rounded-md border border-gray-300 px-2 py-1 hover:bg-gray-100 transition-colors"
+                      onClick={() => handleEdit(contract)}
+                      title="Edit contract"
                     >
                       ✏️
                     </button>
                     <button 
-                      className="rounded-md border px-2 py-1"
+                      className="rounded-md border border-red-300 px-2 py-1 hover:bg-red-50 transition-colors"
                       onClick={() => handleDelete(contract.id)}
+                      title="Delete contract"
                     >
                       🗑️
                     </button>
