@@ -327,6 +327,8 @@ function ApplyPageContent() {
         presentAddress: formData.presentAddress || undefined,
         permanentAddress: formData.permanentAddress || undefined,
         nationality: formData.nationality || undefined,
+        idType: formData.idType || undefined,
+        idNumber: formData.idNumber || undefined,
         desiredPosition: formData.desiredPosition,
         department: formData.department,
         employmentType: formData.employmentType,
@@ -599,6 +601,54 @@ function ApplyPageContent() {
                   required
                   value={formData.permanentAddress}
                   onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Government ID Section */}
+          <section>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">2.1) Government ID Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ID Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="idType"
+                  required
+                  value={formData.idType}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select ID Type</option>
+                  <option value="Philippine Passport">Philippine Passport</option>
+                  <option value="SSS ID">SSS ID</option>
+                  <option value="GSIS ID">GSIS ID</option>
+                  <option value="Driver's License">Driver's License</option>
+                  <option value="PRC ID">PRC ID (Professional Regulation Commission)</option>
+                  <option value="Postal ID">Postal ID</option>
+                  <option value="Voter's ID">Voter's ID</option>
+                  <option value="PhilHealth ID">PhilHealth ID</option>
+                  <option value="TIN ID">TIN ID</option>
+                  <option value="Senior Citizen ID">Senior Citizen ID</option>
+                  <option value="PWD ID">PWD ID</option>
+                  <option value="UMID">UMID (Unified Multi-Purpose ID)</option>
+                  <option value="National ID">National ID (PhilSys)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ID Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="idNumber"
+                  required
+                  value={formData.idNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter your ID number"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>

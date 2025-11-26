@@ -14,7 +14,7 @@ const NAV: Item[] = [
   { href: "/hr/vacancies", label: "Vacancies", icon: <span>🧾</span> },
   { href: "/hr/applicants", label: "Applicants", icon: <span>👥</span> },
   { href: "/hr/evaluation", label: "Evaluation", icon: <span>🧪</span> },
-  { href: "/hr/contract-queue", label: "Contract Queue", icon: <span>⏱️</span> }, // <-- NEW
+  { href: "/hr/contract-queue", label: "Contract Queue", icon: <span>⏱️</span> },
   { href: "/hr/contracts", label: "Contract", icon: <span>📄</span> },
   { href: "/hr/renewals", label: "Renewals", icon: <span>⏳</span> },
   { href: "/hr/faculty", label: "Faculty", icon: <span>🎓</span> },
@@ -59,7 +59,7 @@ export function SidebarHR() {
       </div>
 
       {/* Scrollable nav area */}
-      <nav className="flex-1 overflow-y-auto px-3 pt-4 pb-24 space-y-3">
+      <nav className="px-3 pt-4 space-y-3">
         {NAV.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
@@ -82,14 +82,16 @@ export function SidebarHR() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="sticky bottom-0 px-3 py-3 bg-[var(--teal-300)]/65 backdrop-blur-sm border-t border-[rgba(15,110,116,0.06)]">
+      {/* Spacer to push footer down */}
+      <div className="h-[180px]"></div>
+
+      {/* Footer - aligned to dashboard bottom */}
+      <div className="px-3 pb-0 bg-[var(--teal-300)]/65 backdrop-blur-sm border-t border-[rgba(15,110,116,0.06)]">
         <div className="rounded-xl border bg-[var(--card-bg)] px-3 py-2 text-xs text-slate-600 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
             <span>HR User</span>
           </div>
-
         </div>
 
         <Link

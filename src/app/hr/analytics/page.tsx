@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     LineChart, Line,
@@ -11,47 +11,31 @@ import {
 import { Zap, Target, TrendingUp, AlertCircle } from "lucide-react";
 
 /* ========== Types ========== */
-type DeptKey = "All" | "CAS" | "CHS" | "CBPM" | "CCJ" | "CED" | "CCS";
-
 type TTFPoint = { month: string; days: number };
 type DeptPerf = { dept: string; avgDays: number };
 type ProcessStep = { step: string; avgDays: number; status: "good" | "warning" | "critical" };
 type Prediction = { position: string; predictedDays: number; confidence: number };
 
-/* ========== Mock Data ========== */
-const DEPTS = ["CAS", "CHS", "CBPM", "CCJ", "CED", "CCS"];
-
-const TTF_TREND: TTFPoint[] = [
-    { month: "May", days: 17 },
-    { month: "Jun", days: 16 },
-    { month: "Jul", days: 18 },
-    { month: "Aug", days: 15 },
-    { month: "Sep", days: 16 },
-    { month: "Oct", days: 14 },
-];
-
-const DEPT_PERFORMANCE: DeptPerf[] = [
-    { dept: "CAS", avgDays: 16 },
-    { dept: "CHS", avgDays: 18 },
-    { dept: "CBPM", avgDays: 15 },
-    { dept: "CCJ", avgDays: 14 },
-    { dept: "CED", avgDays: 12 },
-    { dept: "CCS", avgDays: 13 },
-];
-
-const PROCESS_STEPS: ProcessStep[] = [
-    { step: "Post → Screen", avgDays: 3, status: "good" },
-    { step: "Screen → Interview", avgDays: 9, status: "warning" },
-    { step: "Interview → Evaluation", avgDays: 5, status: "good" },
-    { step: "Evaluation → Offer", avgDays: 12, status: "critical" },
-    { step: "Offer → Accept", avgDays: 5, status: "good" },
-];
-
-const AI_PREDICTIONS: Prediction[] = [
-    { position: "CAS - Assistant Prof", predictedDays: 18, confidence: 87 },
-    { position: "CHS - Lecturer", predictedDays: 14, confidence: 92 },
-    { position: "CED - Associate Prof", predictedDays: 22, confidence: 79 },
-];
+interface AnalyticsData {
+  overview: {
+    avgTimeToFill: number;
+    fastestDept: { dept: string; avgDays: number };
+    improvement: number;
+    trendData: TTFPoint[];
+    deptPerformance: DeptPerf[];
+  };
+  process: {
+    steps: ProcessStep[];
+    criticalSteps: number;
+    totalProcessTime: number;
+  };
+  predictions: Prediction[];
+  stats: {
+    totalApplications: number;
+    totalHired: number;
+    inProgress: number;
+  };
+}
 
 const COLORS = {
     teal: "#0d9488",
@@ -132,17 +116,65 @@ function InfoBox({
 /* ========== Page ========== */
 export default function HRAnalytics() {
     const router = useRouter();
-    const [dept, setDept] = useState<DeptKey>("All");
     const [view, setView] = useState<"overview" | "predictions" | "process">("overview");
+    const [data, setData] = useState<AnalyticsData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const avgTTF = useMemo(() => {
-        const total = TTF_TREND.reduce((sum, d) => sum + d.days, 0);
-        return Math.round(total / TTF_TREND.length);
+    useEffect(() => {
+        fetchAnalytics();
     }, []);
 
-    const criticalSteps = useMemo(() => {
-        return PROCESS_STEPS.filter(s => s.status === "critical").length;
-    }, []);
+    const fetchAnalytics = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch('/api/analytics');
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch analytics');
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                setData(result.data);
+            } else {
+                throw new Error(result.error || 'Failed to load analytics');
+            }
+        } catch (err: any) {
+            console.error('Error fetching analytics:', err);
+            setError(err.message || 'Failed to load analytics');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto" />
+                    <p className="mt-4 text-gray-600">Loading analytics...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error || !data) {
+        return (
+            <div className="p-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                    {error || 'No analytics data available'}
+                </div>
+                <button
+                    onClick={fetchAnalytics}
+                    className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -151,6 +183,9 @@ export default function HRAnalytics() {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">HR Analytics</h1>
                     <p className="text-slate-600 mt-1">Insights to improve your hiring process</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                        Based on {data.stats.totalApplications} applications ({data.stats.totalHired} hired, {data.stats.inProgress} in progress)
+                    </p>
                 </div>
                 <button
                     onClick={() => router.push("/hr/dashboard")}
@@ -199,9 +234,21 @@ export default function HRAnalytics() {
                 <>
                     {/* Top Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <BigStat label="Average Time to Fill" value={`${avgTTF} days`} color="teal" />
-                        <BigStat label="Fastest Department" value="CED (12d)" color="cyan" />
-                        <BigStat label="Improvement This Month" value="↓ 2 days" color="teal" />
+                        <BigStat 
+                            label="Average Time to Fill" 
+                            value={`${data.overview.avgTimeToFill} days`} 
+                            color="teal" 
+                        />
+                        <BigStat 
+                            label="Fastest Department" 
+                            value={`${data.overview.fastestDept.dept} (${data.overview.fastestDept.avgDays}d)`} 
+                            color="cyan" 
+                        />
+                        <BigStat 
+                            label="Improvement This Month" 
+                            value={data.overview.improvement >= 0 ? `↓ ${data.overview.improvement} days` : `↑ ${Math.abs(data.overview.improvement)} days`}
+                            color="teal" 
+                        />
                     </div>
 
                     {/* Charts */}
@@ -212,7 +259,7 @@ export default function HRAnalytics() {
                         >
                             <div className="h-72">
                                 <ResponsiveContainer>
-                                    <LineChart data={TTF_TREND}>
+                                    <LineChart data={data.overview.trendData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                         <XAxis dataKey="month" stroke="#64748b" />
                                         <YAxis stroke="#64748b" />
@@ -228,7 +275,9 @@ export default function HRAnalytics() {
                                 </ResponsiveContainer>
                             </div>
                             <p className="text-xs text-slate-500 mt-3">
-                                ✓ Good news: You're getting faster at hiring
+                                {data.overview.improvement >= 0 
+                                    ? '✓ Good news: You\'re getting faster at hiring' 
+                                    : '⚠ Hiring is taking longer this month'}
                             </p>
                         </Card>
 
@@ -238,7 +287,7 @@ export default function HRAnalytics() {
                         >
                             <div className="h-72">
                                 <ResponsiveContainer>
-                                    <BarChart data={DEPT_PERFORMANCE}>
+                                    <BarChart data={data.overview.deptPerformance}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                         <XAxis dataKey="dept" stroke="#64748b" />
                                         <YAxis stroke="#64748b" />
@@ -265,7 +314,7 @@ export default function HRAnalytics() {
                     />
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {AI_PREDICTIONS.map((pred, i) => (
+                        {data.predictions.map((pred, i) => (
                             <div key={i} className="bg-white rounded-xl border p-5">
                                 <div className="text-sm text-slate-600 mb-2">{pred.position}</div>
                                 <div className="text-3xl font-bold text-teal-600 mb-3">
@@ -294,7 +343,7 @@ export default function HRAnalytics() {
                                 <div>
                                     <div className="font-medium text-slate-800 text-sm">Plan Ahead</div>
                                     <div className="text-xs text-slate-600 mt-1">
-                                        If you need a position filled by a certain date, post it {avgTTF + 5} days before
+                                        If you need a position filled by a certain date, post it {data.overview.avgTimeToFill + 5} days before
                                     </div>
                                 </div>
                             </div>
@@ -303,7 +352,7 @@ export default function HRAnalytics() {
                                 <div>
                                     <div className="font-medium text-slate-800 text-sm">Set Realistic Expectations</div>
                                     <div className="text-xs text-slate-600 mt-1">
-                                        Senior positions typically take 20-25 days, lecturer positions 12-15 days
+                                        Based on historical data, your average hiring time is {data.overview.avgTimeToFill} days
                                     </div>
                                 </div>
                             </div>
@@ -324,17 +373,17 @@ export default function HRAnalytics() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <BigStat
                             label="Total Process Time"
-                            value={`${PROCESS_STEPS.reduce((sum, s) => sum + s.avgDays, 0)}d`}
+                            value={`${data.process.totalProcessTime}d`}
                             color="teal"
                         />
                         <BigStat
                             label="Slowest Step"
-                            value="Evaluation → Offer"
+                            value={data.process.steps.sort((a, b) => b.avgDays - a.avgDays)[0]?.step || 'N/A'}
                             color="amber"
                         />
                         <BigStat
                             label="Steps Needing Attention"
-                            value={criticalSteps}
+                            value={data.process.criticalSteps}
                             color="amber"
                         />
                     </div>
@@ -344,13 +393,14 @@ export default function HRAnalytics() {
                         subtitle="Average days spent at each hiring stage"
                     >
                         <div className="space-y-4">
-                            {PROCESS_STEPS.map((step, i) => {
+                            {data.process.steps.map((step, i) => {
                                 const statusColors = {
                                     good: { bg: "bg-green-50", bar: "bg-green-500", text: "text-green-700" },
                                     warning: { bg: "bg-amber-50", bar: "bg-amber-500", text: "text-amber-700" },
                                     critical: { bg: "bg-red-50", bar: "bg-red-500", text: "text-red-700" },
                                 };
                                 const colors = statusColors[step.status];
+                                const maxDays = Math.max(...data.process.steps.map(s => s.avgDays));
 
                                 return (
                                     <div key={i} className={`${colors.bg} rounded-lg p-4`}>
@@ -361,7 +411,7 @@ export default function HRAnalytics() {
                                         <div className="h-2 bg-white/50 rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full ${colors.bar}`}
-                                                style={{ width: `${(step.avgDays / 12) * 100}%` }}
+                                                style={{ width: `${(step.avgDays / maxDays) * 100}%` }}
                                             />
                                         </div>
                                     </div>
@@ -372,53 +422,44 @@ export default function HRAnalytics() {
 
                     <Card title="How to Improve" subtitle="Action items to speed up hiring">
                         <div className="space-y-3">
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-red-100 text-red-700 rounded-lg p-2">
-                                        <AlertCircle size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-sm text-red-900">Critical: Speed Up Committee Decisions</div>
-                                        <div className="text-xs text-red-800 mt-1">
-                                            Evaluation → Offer takes 12 days (target: 7 days). Set firm deadlines for committee reviews.
+                            {data.process.steps
+                                .filter(s => s.status === 'critical')
+                                .map((step, i) => (
+                                    <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="bg-red-100 text-red-700 rounded-lg p-2">
+                                                <AlertCircle size={20} />
+                                            </div>
+                                            <div>
+                                                <div className="font-semibold text-sm text-red-900">Critical: Speed Up {step.step}</div>
+                                                <div className="text-xs text-red-800 mt-1">
+                                                    This step takes {step.avgDays} days (target: 7 days or less). Consider streamlining this process.
+                                                </div>
+                                                <div className="text-xs font-semibold text-red-700 mt-2">
+                                                    💰 Potential savings: {Math.max(0, step.avgDays - 7)} days per hire
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="text-xs font-semibold text-red-700 mt-2">
-                                            💰 Potential savings: 5 days per hire
-                                        </div>
                                     </div>
-                                </div>
-                            </div>
+                                ))}
 
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-amber-100 text-amber-700 rounded-lg p-2">
-                                        <Target size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-sm text-amber-900">Standardize Interview Scheduling</div>
-                                        <div className="text-xs text-amber-800 mt-1">
-                                            Screen → Interview takes 9 days. Use calendar automation to reduce to 6 days.
+                            {data.process.steps
+                                .filter(s => s.status === 'good')
+                                .length > 0 && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="bg-green-100 text-green-700 rounded-lg p-2">
+                                            <Zap size={20} />
                                         </div>
-                                        <div className="text-xs font-semibold text-amber-700 mt-2">
-                                            💰 Potential savings: 3 days per hire
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-green-100 text-green-700 rounded-lg p-2">
-                                        <Zap size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-sm text-green-900">Quick Wins Working Well</div>
-                                        <div className="text-xs text-green-800 mt-1">
-                                            Post → Screen (3d) and Interview → Evaluation (5d) are efficient. Keep doing what you're doing!
+                                        <div>
+                                            <div className="font-semibold text-sm text-green-900">Quick Wins Working Well</div>
+                                            <div className="text-xs text-green-800 mt-1">
+                                                {data.process.steps.filter(s => s.status === 'good').map(s => s.step).join(', ')} are efficient. Keep doing what you're doing!
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </Card>
 
@@ -428,7 +469,7 @@ export default function HRAnalytics() {
                                 <ResponsiveContainer>
                                     <PieChart>
                                         <Pie
-                                            data={PROCESS_STEPS.map(s => ({
+                                            data={data.process.steps.map(s => ({
                                                 name: s.step,
                                                 value: s.avgDays
                                             }))}
@@ -439,7 +480,7 @@ export default function HRAnalytics() {
                                             outerRadius={80}
                                             dataKey="value"
                                         >
-                                            {PROCESS_STEPS.map((step, i) => (
+                                            {data.process.steps.map((step, i) => (
                                                 <Cell
                                                     key={i}
                                                     fill={
@@ -459,25 +500,37 @@ export default function HRAnalytics() {
                         <Card title="Your Process Health">
                             <div className="space-y-6 py-4">
                                 <div className="text-center">
-                                    <div className="text-5xl font-bold text-teal-600 mb-2">B+</div>
+                                    <div className="text-5xl font-bold text-teal-600 mb-2">
+                                        {data.process.criticalSteps === 0 ? 'A' : 
+                                         data.process.criticalSteps === 1 ? 'B+' : 
+                                         data.process.criticalSteps === 2 ? 'B' : 'C'}
+                                    </div>
                                     <div className="text-sm text-slate-600">Overall Grade</div>
-                                    <div className="text-xs text-slate-500 mt-1">Good, but room to improve</div>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                        {data.process.criticalSteps === 0 ? 'Excellent!' : 
+                                         data.process.criticalSteps <= 2 ? 'Good, but room to improve' : 
+                                         'Needs improvement'}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4 text-center">
                                     <div className="bg-green-50 rounded-lg p-3">
-                                        <div className="text-2xl font-bold text-green-600">3</div>
+                                        <div className="text-2xl font-bold text-green-600">
+                                            {data.process.steps.filter(s => s.status === 'good').length}
+                                        </div>
                                         <div className="text-xs text-slate-600 mt-1">Steps on track</div>
                                     </div>
                                     <div className="bg-amber-50 rounded-lg p-3">
-                                        <div className="text-2xl font-bold text-amber-600">2</div>
+                                        <div className="text-2xl font-bold text-amber-600">
+                                            {data.process.criticalSteps}
+                                        </div>
                                         <div className="text-xs text-slate-600 mt-1">Need attention</div>
                                     </div>
                                 </div>
 
                                 <div className="text-xs text-slate-500 text-center">
                                     Industry average: 36 days<br />
-                                    Your average: {PROCESS_STEPS.reduce((sum, s) => sum + s.avgDays, 0)} days ✓
+                                    Your average: {data.process.totalProcessTime} days {data.process.totalProcessTime < 36 ? '✓' : ''}
                                 </div>
                             </div>
                         </Card>

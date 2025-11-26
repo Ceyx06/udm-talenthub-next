@@ -260,8 +260,8 @@ export default function HRDashboard() {
     }
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-2 h-full overflow-hidden w-full p-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <PageHeader
                     title="HR Dashboard"
                     subtitle="Efficiency, workload, and performance tracking of the hiring process"
@@ -269,7 +269,7 @@ export default function HRDashboard() {
             </div>
 
             {/* Pending Actions KPI tiles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <StatTile
                     title="Applications to Review"
                     value={pending.toReview}
@@ -294,8 +294,8 @@ export default function HRDashboard() {
             </div>
 
             {/* Progress + Pipeline */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                     <Progress
                         label="Positions Filled — This Month"
                         value={filledStats.month.value}
@@ -313,12 +313,12 @@ export default function HRDashboard() {
                     />
                 </div>
 
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-3">
                     <Panel
                         title="Hiring Pipeline Status"
                         subtitle="Funnel from Applications → Hired (click a bar to view applicants)"
                     >
-                        <div className="h-80">
+                        <div className="h-44">
                             <ResponsiveContainer>
                                 <BarChart
                                     data={pipelineData}
@@ -355,20 +355,21 @@ export default function HRDashboard() {
                 </div>
             </div>
 
-            {/* Applications by Department */}
-            <div className="grid grid-cols-1 gap-4">
-                <Panel
-                    title="Applications by Department"
-                    subtitle="Total applications and active candidates by college"
-                >
-                    <div className="h-72">
+            {/* Applications by Department + Summary Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+                <div className="lg:col-span-2">
+                    <Panel
+                        title="Applications by Department"
+                        subtitle="Total applications and active candidates by college"
+                    >
+                        <div className="h-52">
                         <ResponsiveContainer>
                             <BarChart data={applicationsByDept}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-                                <XAxis dataKey="dept" stroke="#64748b" />
-                                <YAxis stroke="#64748b" />
+                                <XAxis dataKey="dept" stroke="#64748b" tick={{ fontSize: 10 }} />
+                                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
                                 <Tooltip />
-                                <Legend />
+                                <Legend wrapperStyle={{ fontSize: '11px' }} />
                                 <Bar
                                     dataKey="count"
                                     name="Total Applications"
@@ -385,31 +386,42 @@ export default function HRDashboard() {
                         </ResponsiveContainer>
                     </div>
                 </Panel>
-            </div>
+                </div>
 
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                    <p className="text-sm text-gray-600">Total Applications</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{applications.length}</p>
-                </div>
-                <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                    <p className="text-sm text-gray-600">Active Candidates</p>
-                    <p className="text-3xl font-bold text-blue-600 mt-1">
-                        {applications.filter(a => !['REJECTED', 'HIRED'].includes(a.stage)).length}
-                    </p>
-                </div>
-                <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                    <p className="text-sm text-gray-600">Hired This Year</p>
-                    <p className="text-3xl font-bold text-green-600 mt-1">
-                        {filledStats.year.value}
-                    </p>
-                </div>
-                <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                    <p className="text-sm text-gray-600">Rejected</p>
-                    <p className="text-3xl font-bold text-red-600 mt-1">
-                        {applications.filter(a => a.stage === 'REJECTED').length}
-                    </p>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 gap-2 content-start">
+                    <div className="rounded-2xl border bg-white p-2.5 shadow-sm">
+                        <p className="text-xs text-gray-600">Total Applications</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{applications.length}</p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-2.5 shadow-sm">
+                        <p className="text-xs text-gray-600">Active Candidates</p>
+                        <p className="text-2xl font-bold text-blue-600 mt-1">
+                            {applications.filter(a => !['REJECTED', 'HIRED'].includes(a.stage)).length}
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-2.5 shadow-sm">
+                        <p className="text-xs text-gray-600">Hired This Year</p>
+                        <p className="text-2xl font-bold text-green-600 mt-1">
+                            {filledStats.year.value}
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-2.5 shadow-sm">
+                        <p className="text-xs text-gray-600">Rejected</p>
+                        <p className="text-2xl font-bold text-red-600 mt-1">
+                            {applications.filter(a => a.stage === 'REJECTED').length}
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-2.5 shadow-sm">
+                        <p className="text-xs text-gray-600">Avg. Time to Hire</p>
+                        <p className="text-2xl font-bold text-purple-600 mt-1">28d</p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-2.5 shadow-sm">
+                        <p className="text-xs text-gray-600">Success Rate</p>
+                        <p className="text-2xl font-bold text-teal-600 mt-1">
+                            {applications.length > 0 ? Math.round((applications.filter(a => a.stage === 'HIRED').length / applications.length) * 100) : 0}%
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
