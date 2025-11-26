@@ -32,7 +32,7 @@ export async function PATCH(
       await prisma.application.update({
         where: { id: updatedEvaluation.applicationId },
         data: {
-          stage: 'FOR_CONTRACT',
+          stage: 'HIRED',
         },
       });
 
@@ -52,20 +52,20 @@ export async function PATCH(
         const endDate = new Date();
         endDate.setFullYear(endDate.getFullYear() + 1);
 
-        // Create contract
+        // Create contract with employment type from application
         await prisma.contract.create({
           data: {
             contractNo,
             evaluationId: id,
             facultyName: updatedEvaluation.application?.fullName || 'Unknown',
             email: updatedEvaluation.application?.email || '',
-            phone: updatedEvaluation.application?.phone || '',
+            phone: updatedEvaluation.application?.phone || updatedEvaluation.application?.contactNo || '',
             college: updatedEvaluation.application?.vacancy?.college || 
                      updatedEvaluation.application?.department || 'N/A',
             jobTitle: updatedEvaluation.application?.vacancy?.title || 
                       updatedEvaluation.application?.desiredPosition || 'N/A',
             position: updatedEvaluation.rank || 'N/A',
-            employmentType: 'Full-time',
+            employmentType: updatedEvaluation.application?.employmentType || 'Full-time', // ✅ Gets from application
             ratePerHour: updatedEvaluation.ratePerHour || 0,
             startDate,
             endDate,
@@ -76,11 +76,17 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json(updatedEvaluation);
+    return NextResponse.json({
+      success: true,
+      data: updatedEvaluation,
+      message: contractStatus === 'approved' 
+        ? 'Contract approved and created successfully' 
+        : 'Contract declined successfully',
+    });
   } catch (error: any) {
     console.error('Error updating contract status:', error);
     return NextResponse.json(
-      { message: error.message || 'Failed to update contract status' },
+      { success: false, error: error.message || 'Failed to update contract status' },
       { status: 500 }
     );
   }
