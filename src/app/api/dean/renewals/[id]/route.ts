@@ -21,8 +21,17 @@ export async function PATCH(
       );
     }
 
+    // 🔎 Optional: ensure contract exists first
+    const existing = await prisma.contract.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Contract not found" },
+        { status: 404 }
+      );
+    }
+
     // Map decision -> Contract.status
-    // 🔧 Adjust these strings to match your actual ContractStatus enum values
+    // 🔧 Adjust these to your actual ContractStatus enum
     let newStatus: string;
     if (decision === "RENEW") {
       newStatus = "APPROVED"; // or "RENEWED"

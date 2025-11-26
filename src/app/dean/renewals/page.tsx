@@ -11,7 +11,7 @@ type DeanRenewalRow = {
   position: string;
   type: string | null;
   contractEndDate: string | null;
-  status: string; // value from Contract.status
+  status: string; // raw Contract.status value
 };
 
 export default function DeanRenewalsPage() {
@@ -42,22 +42,29 @@ export default function DeanRenewalsPage() {
   const fmtDate = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleDateString() : "—";
 
-  const statusBadge = (s: DeanRenewalRow["status"]) => {
-    // Adjust these checks to match your actual Contract.status enum values
-    if (s === "APPROVED" || s === "RENEWED") {
+  // Normalize status to decide badge
+  const statusBadge = (s: string) => {
+    const val = s.toUpperCase().replace(/\s+/g, "_"); // e.g. "Pending Dean" -> "PENDING_DEAN"
+
+    if (val === "APPROVED" || val === "RENEWED") {
       return <Badge tone="green">Approved</Badge>;
     }
-    if (s === "REJECTED" || s === "NOT_RENEW") {
+    if (val === "NOT_RENEW" || val === "REJECTED") {
       return <Badge tone="red">Not Renew</Badge>;
     }
-    // anything else is treated as "Pending Dean"
+    // Everything else is treated as pending
     return <Badge tone="yellow">Pending Dean</Badge>;
+  };
+
+  // Final statuses = decision already made
+  const isFinalStatus = (s: string) => {
+    const val = s.toUpperCase().replace(/\s+/g, "_");
+    return val === "APPROVED" || val === "RENEWED" || val === "NOT_RENEW" || val === "REJECTED";
   };
 
   const act = async (id: string, decision: "RENEW" | "NOT_RENEW") => {
     try {
       setLoading(true);
-
       const res = await fetch(`/api/dean/renewals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -94,6 +101,7 @@ export default function DeanRenewalsPage() {
               <th>Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
@@ -108,36 +116,47 @@ export default function DeanRenewalsPage() {
                 </td>
               </tr>
             ) : (
-              rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="p-3">{r.facultyName}</td>
-                  <td>{r.position}</td>
-                  <td>{r.type ?? "—"}</td>
-                  <td>{fmtDate(r.contractEndDate)}</td>
-                  <td>{statusBadge(r.status)}</td>
-                  <td className="space-x-2 p-3">
-                    <button
-                      onClick={() => act(r.id, "RENEW")}
-                      title="Recommend to renew this contract"
-                      className="rounded-md bg-green-600 text-white px-3 py-1 transition hover:bg-green-700 hover:shadow-sm active:scale-95"
-                    >
-                      ✓ Renew
-                    </button>
-                    <button
-                      onClick={() => act(r.id, "NOT_RENEW")}
-                      title="Recommend not to renew this contract"
-                      className="rounded-md bg-red-600 text-white px-3 py-1 transition hover:bg-red-700 hover:shadow-sm active:scale-95"
-                    >
-                      ✗ Not Renew
-                    </button>
-                  </td>
-                </tr>
-              ))
+              rows.map((r) => {
+                const final = isFinalStatus(r.status);
+
+                return (
+                  <tr key={r.id} className="border-t">
+                    <td className="p-3">{r.facultyName}</td>
+                    <td>{r.position}</td>
+                    <td>{r.type ?? "—"}</td>
+                    <td>{fmtDate(r.contractEndDate)}</td>
+                    <td>{statusBadge(r.status)}</td>
+                    <td className="p-3 space-x-2">
+                      {final ? (
+                        <span className="text-xs text-gray-500">
+                          Decision Submitted
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => act(r.id, "RENEW")}
+                            className="rounded-md bg-green-600 text-white px-3 py-1 transition hover:bg-green-700 hover:shadow-sm active:scale-95"
+                            title="Recommend to renew this contract"
+                          >
+                            ✓ Renew
+                          </button>
+                          <button
+                            onClick={() => act(r.id, "NOT_RENEW")}
+                            className="rounded-md bg-red-600 text-white px-3 py-1 transition hover:bg-red-700 hover:shadow-sm active:scale-95"
+                            title="Recommend not to renew this contract"
+                          >
+                            ✗ Not Renew
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
-      {/* Write Remarks + Additional Remarks removed as requested */}
     </div>
   );
 }
