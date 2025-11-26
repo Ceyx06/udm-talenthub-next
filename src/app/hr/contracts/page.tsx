@@ -253,7 +253,16 @@ export default function ContractsPage() {
                   <td>{contract.facultyName}</td>
                   <td><Badge tone="gray">{contract.college}</Badge></td>
                   <td>{contract.jobTitle}</td>
-                  <td>{contract.employmentType}</td>
+                  <td>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                      contract.employmentType === 'Full-time' ? 'bg-blue-100 text-blue-800' :
+                      contract.employmentType === 'Part-time' ? 'bg-purple-100 text-purple-800' :
+                      contract.employmentType === 'Contractual' ? 'bg-orange-100 text-orange-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {contract.employmentType || 'N/A'}
+                    </span>
+                  </td>
                   <td>{new Date(contract.startDate).toLocaleDateString()}</td>
                   <td>{new Date(contract.endDate).toLocaleDateString()}</td>
                   <td>₱{contract.ratePerHour.toFixed(2)}</td>
@@ -285,5 +294,3 @@ export default function ContractsPage() {
     </div>
   );
 }
-
-// asdsjdwaj
