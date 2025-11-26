@@ -1,4 +1,3 @@
-// src/app/api/dean/renewals/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -10,7 +9,6 @@ export async function GET(req: Request) {
   const skip = Number(searchParams.get("skip") ?? 0);
   const take = Math.min(Number(searchParams.get("take") ?? 20), 100);
 
-  // Adjust field names here to match your Contract model
   const where: Prisma.ContractWhereInput = search
     ? {
         OR: [
@@ -26,9 +24,20 @@ export async function GET(req: Request) {
     const [contracts, total] = await Promise.all([
       prisma.contract.findMany({
         where,
-        orderBy: { endDate: "asc" }, // contracts ending soon first
+        orderBy: { endDate: "asc" },
         skip,
         take,
+        include: {
+          evaluation: {
+            include: {
+              application: {
+                include: {
+                  vacancy: true, // optional but consistent with your reference
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.contract.count({ where }),
     ]);
@@ -36,10 +45,10 @@ export async function GET(req: Request) {
     const items = contracts.map((c) => ({
       id: c.id,
       facultyName: c.facultyName,
-      position: c.jobTitle, // or c.position if that's your field
-      type: (c as any).type ?? null, // if you have a 'type' field; otherwise can be removed
+      position: c.jobTitle, // adjust if your field is named 'position'
+      type: c.evaluation?.application?.employmentType ?? null, // <── FIXED TYPE
       contractEndDate: c.endDate ? c.endDate.toISOString() : null,
-      status: c.status, // value from Contract.status
+      status: c.status,
     }));
 
     return NextResponse.json({ items, total, skip, take });
