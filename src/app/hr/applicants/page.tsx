@@ -110,21 +110,30 @@ export default function ApplicantsPage() {
   };
 
   const handleDeleteApplication = async (applicationId: string) => {
-    if (!confirm('Are you sure you want to delete this application?')) return;
-    try {
-      const response = await fetch(`/api/application/${applicationId}`, { method: 'DELETE' });
-      const data = await response.json();
-      if (data.success) {
-        alert('Application deleted successfully!');
-        fetchApplications();
-      } else {
-        alert(data.error || 'Failed to delete application');
-      }
-    } catch (error) {
-      console.error('Error deleting application:', error);
-      alert('Failed to delete application');
+  if (!confirm('Are you sure you want to delete this application?')) return;
+  try {
+    // ✅ Changed from /api/application to /api/hr/applicants
+    const response = await fetch(`/api/hr/applicants/${applicationId}`, { 
+      method: 'DELETE' 
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Application deleted successfully!');
+      fetchApplications();
+    } else {
+      alert(data.error || 'Failed to delete application');
+    }
+  } catch (error) {
+    console.error('Error deleting application:', error);
+    alert('Failed to delete application');
+  }
+};
 
   const handleUpdateFileStatus = async (applicationId: string, fileStatus: string) => {
     try {
