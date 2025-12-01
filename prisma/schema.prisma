@@ -265,6 +265,9 @@ model Evaluation {
   id                    String      @id @default(cuid())
   applicationId         String      @unique
   application           Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+   // NEW: back-relation to all detailed rows for this evaluation
+  items                 EvaluationItem[]
   
   // Scores by category
   educationalScore      Float       @default(0)
@@ -298,4 +301,41 @@ model Evaluation {
   @@index([applicationId])
   @@index([contractStatus])
   @@map("evaluations")
+}
+
+enum EvaluationFieldType {
+  RADIO   // yes / no (Category 1.1)
+  UNITS   // # of units / years (2.x, 3.1.x, 3.2.x, 3.3–3.6)
+  SCALE   // 1–5 scale (4.1–4.4)
+}
+
+model EvaluationItem {
+  id           String            @id @default(cuid())
+  evaluationId String
+  evaluation   Evaluation        @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  // Identification of which line in the form this is
+  category     Int               // 1, 2, 3, 4
+  subcategory  String            // e.g. "1.1", "3.2.1", "4.3"
+  itemKey      String            // e.g. "c11_doctorate", "c321_trainingIntl"
+  label        String?           // optional; you can also keep labels only in frontend/PDF config
+
+  fieldType    EvaluationFieldType
+
+  // User input
+  yesNo        Boolean?          // for RADIO items (1 = yes, 0 = no)
+  units        Float?            // # of years, # of books, # of 3-unit blocks, etc.
+  scale        Int?              // 1–5 rating (Category 4.x)
+  customPoints Float?            // cases like 1.1.c "Others please specify" where credit is editable
+
+  // for transparency / debugging you can also store how it was scored
+  creditPerUnit  Float?          // the official credit (e.g. 7, 5, 1.5, etc.)
+  creditedPoints Float?          // final computed value (units × credit, or points for RADIO)
+
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([evaluationId])
+  @@index([category])
+  @@index([itemKey], name: "EvaluationItem_itemKey_idx")
 }
