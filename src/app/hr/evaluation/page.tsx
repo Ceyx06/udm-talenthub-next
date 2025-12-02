@@ -78,16 +78,16 @@ const CAT3_CREDITS: Record<string, number> = {
   book_sa_tertiary: 7,
   book_sa_hs: 5,
   book_sa_elem: 4,
-  book_ca_tertiary: 3,
-  book_ca_hs: 2,
+  book_ca_tertiary: 5,
+  book_ca_hs: 3,
   book_ca_elem: 2,
   book_rev_tertiary: 4,
   book_rev_hs: 2,
   book_rev_elem: 1,
-  book_trans_tertiary: 3,
+  book_trans_tertiary: 4,
   book_trans_hs: 2,
   book_trans_elem: 1,
-  book_edit_tertiary: 2,
+  book_edit_tertiary: 3,
   book_edit_hs: 2,
   book_edit_elem: 1,
   book_comp_tertiary: 2,
@@ -116,8 +116,8 @@ const CAT3_CREDITS: Record<string, number> = {
   ts_conf_local: 1,
 
   // 3.2.2 Expert Services Rendered
-  es_intl: 7,
-  es_nat: 5,
+  es_intl: 5,
+  es_nat: 3,
   es_local: 2,
   coord_intl: 5,
   coord_nat: 3,
@@ -139,15 +139,30 @@ const CAT3_CREDITS: Record<string, number> = {
   po_member: 0.5,
 
   // 3.3.2 Scholarship / Fellowship
-  sf_intl_degree: 5,
-  sf_intl_non: 4,
-  sf_nat_degree: 3,
-  sf_nat_non: 2,
+  // a. International, competitive
+  sf_a_intl_comp_doc: 5,
+  sf_a_intl_comp_mast: 4,
+  sf_a_intl_comp_non: 3,
+
+  // b. International, non-competitive
+  sf_b_intl_noncomp_doc: 3,
+  sf_b_intl_noncomp_mast: 2,
+  sf_b_intl_noncomp_non: 2,
+
+  // c. National / Regional, competitive
+  sf_c_nat_comp_doc: 3,
+  sf_c_nat_comp_mast: 2,
+  sf_c_nat_comp_non: 1,
+
+  // d. National / Regional, non-competitive
+  sf_d_nat_noncomp_doc: 2,
+  sf_d_nat_noncomp_mast: 1,
+  sf_d_nat_noncomp_non: 1,
 
   // 3.4 Awards of Distinction
   award_intl: 5,
   award_nat: 3,
-  award_local: 1,
+  award_local: 2,
 
   // 3.5 Community Outreach
   co_service: 1,
@@ -1479,9 +1494,6 @@ function EducationQualificationsSection({
           <div className="px-4 py-2">
             1.3.1 For every 3 units earned toward a higher approved
             degree course : 1
-            <div className="text-xs text-gray-500">
-              Enter total units below (auto-computes).
-            </div>
           </div>
           <div className="px-4 py-2">
             <div className="flex items-center justify-end gap-2">
@@ -1885,10 +1897,18 @@ function Category3Section({
     'po_officer',
     'po_member',
     // 3.3.2 Scholarship / Fellowship
-    'sf_intl_degree',
-    'sf_intl_non',
-    'sf_nat_degree',
-    'sf_nat_non',
+    'sf_a_intl_comp_doc',
+    'sf_a_intl_comp_mast',
+    'sf_a_intl_comp_non',
+    'sf_b_intl_noncomp_doc',
+    'sf_b_intl_noncomp_mast',
+    'sf_b_intl_noncomp_non',
+    'sf_c_nat_comp_doc',
+    'sf_c_nat_comp_mast',
+    'sf_c_nat_comp_non',
+    'sf_d_nat_noncomp_doc',
+    'sf_d_nat_noncomp_mast',
+    'sf_d_nat_noncomp_non',
   ];
 
   const keys34: (keyof typeof CAT3_CREDITS)[] = [
@@ -2004,12 +2024,12 @@ function Category3Section({
         </div>
         <TableHeader />
         <Row
-          label="Originality, Educational impact (60% of 7 = 4.2)"
+          label="Originality, Educational impact"
           credit={CAT3_CREDITS.disc_originality}
           field="disc_originality"
         />
         <Row
-          label="Evidence of dissemination (40% of 7 = 2.8)"
+          label="Evidence of dissemination"
           credit={CAT3_CREDITS.disc_dissemination}
           field="disc_dissemination"
         />
@@ -2020,22 +2040,22 @@ function Category3Section({
         </div>
         <TableHeader />
         <Row
-          label="Acceptability (25% of 7 = 1.75)"
+          label="Originality:"
           credit={CAT3_CREDITS.cw_accept}
           field="cw_accept"
         />
         <Row
-          label="Recognition (25% of 7 = 1.75)"
+          label="Acceptability and recognition:"
           credit={CAT3_CREDITS.cw_recognition}
           field="cw_recognition"
         />
         <Row
-          label="Relevance & value (25% of 7 = 1.75)"
+          label="Relevance and value:"
           credit={CAT3_CREDITS.cw_relevance}
           field="cw_relevance"
         />
         <Row
-          label="Documentation & evidence (25% of 7 = 1.75)"
+          label="Documentation and evidence of dissemination:"
           credit={CAT3_CREDITS.cw_documentation}
           field="cw_documentation"
         />
@@ -2206,21 +2226,21 @@ function Category3Section({
         </div>
 
         <div className="bg-gray-100 px-4 py-2 text-sm font-semibold">
-          3.2.1 Training &amp; Seminars (cap 10)
+          3.2.1 Training &amp; Seminars
         </div>
         <TableHeader />
         <Row
-          label="Training – International (5)"
+          label="Training – International"
           credit={CAT3_CREDITS.ts_intl}
           field="ts_intl"
         />
         <Row
-          label="Training – National (3)"
+          label="Training – National"
           credit={CAT3_CREDITS.ts_nat}
           field="ts_nat"
         />
         <Row
-          label="Training – Local (2)"
+          label="Training – Local"
           credit={CAT3_CREDITS.ts_local}
           field="ts_local"
         />
@@ -2230,17 +2250,17 @@ function Category3Section({
           field="ts_industry"
         />
         <Row
-          label="Conference participation – International (3)"
+          label="Conference participation – International"
           credit={CAT3_CREDITS.ts_conf_intl}
           field="ts_conf_intl"
         />
         <Row
-          label="Conference participation – National (2)"
+          label="Conference participation – National"
           credit={CAT3_CREDITS.ts_conf_nat}
           field="ts_conf_nat"
         />
         <Row
-          label="Conference participation – Local (1)"
+          label="Conference participation – Local"
           credit={CAT3_CREDITS.ts_conf_local}
           field="ts_conf_local"
         />
@@ -2250,67 +2270,67 @@ function Category3Section({
         </div>
         <TableHeader />
         <Row
-          label="Consultant/Expert – International (7)"
+          label="Consultant/Expert – International"
           credit={CAT3_CREDITS.es_intl}
           field="es_intl"
         />
         <Row
-          label="Consultant/Expert – National (5)"
+          label="Consultant/Expert – National"
           credit={CAT3_CREDITS.es_nat}
           field="es_nat"
         />
         <Row
-          label="Consultant/Expert – Local (2)"
+          label="Consultant/Expert – Local"
           credit={CAT3_CREDITS.es_local}
           field="es_local"
         />
         <Row
-          label="Coordinator/Lecturer/Resource – International (5)"
+          label="Coordinator/Lecturer/Resource – International"
           credit={CAT3_CREDITS.coord_intl}
           field="coord_intl"
         />
         <Row
-          label="Coordinator/Lecturer/Resource – National (3)"
+          label="Coordinator/Lecturer/Resource – National"
           credit={CAT3_CREDITS.coord_nat}
           field="coord_nat"
         />
         <Row
-          label="Coordinator/Lecturer/Resource – Local (2)"
+          label="Coordinator/Lecturer/Resource – Local"
           credit={CAT3_CREDITS.coord_local}
           field="coord_local"
         />
         <Row
-          label="Adviser – Doctoral (1)"
+          label="Adviser – Doctoral"
           credit={CAT3_CREDITS.adv_doc}
           field="adv_doc"
         />
         <Row
-          label="Adviser – Masteral (0.5)"
+          label="Adviser – Masteral"
           credit={CAT3_CREDITS.adv_master}
           field="adv_master"
         />
         <Row
-          label="Adviser – Undergraduate (0.25)"
+          label="Adviser – Undergraduate"
           credit={CAT3_CREDITS.adv_undergrad}
           field="adv_undergrad"
         />
         <Row
-          label="PRC/CSC Reviewer/Examiner (1)"
+          label="PRC/CSC Reviewer/Examiner"
           credit={CAT3_CREDITS.es_reviewer}
           field="es_reviewer"
         />
         <Row
-          label="Accreditation/Board/Committee (1)"
+          label="Accreditation/Board/Committee"
           credit={CAT3_CREDITS.es_accredit}
           field="es_accredit"
         />
         <Row
-          label="Trade skills certification (1)"
+          label="Trade skills certification"
           credit={CAT3_CREDITS.es_trade}
           field="es_trade"
         />
         <Row
-          label="Coach/Trainer/Adviser per year (1)"
+          label="Coach/Trainer/Adviser per year"
           credit={CAT3_CREDITS.es_coach}
           field="es_coach"
         />
@@ -2331,63 +2351,123 @@ function Category3Section({
         </div>
 
         <div className="bg-gray-100 px-4 py-2 text-sm font-semibold">
-          3.3.1 Professional Organizations (cap 10)
+          3.3.1 Professional Organizations
         </div>
         <TableHeader />
         <Row
-          label="Learned Society – Full member (2)"
+          label="Learned Society – Full member"
           credit={CAT3_CREDITS.po_full}
           field="po_full"
         />
         <Row
-          label="Learned Society – Associate member (1)"
+          label="Learned Society – Associate member"
           credit={CAT3_CREDITS.po_assoc}
           field="po_assoc"
         />
         <Row
-          label="Honor Society (1)"
+          label="Honor Society"
           credit={CAT3_CREDITS.po_honor}
           field="po_honor"
         />
         <Row
-          label="Scientific Society (1)"
+          label="Scientific Society"
           credit={CAT3_CREDITS.po_science}
           field="po_science"
         />
         <Row
-          label="Professional Organization – Officer (1)"
+          label="Professional Organization – Officer"
           credit={CAT3_CREDITS.po_officer}
           field="po_officer"
         />
         <Row
-          label="Professional Organization – Member (0.5)"
+          label="Professional Organization – Member"
           credit={CAT3_CREDITS.po_member}
           field="po_member"
         />
 
         <div className="bg-gray-100 px-4 py-2 text-sm font-semibold border-t">
-          3.3.2 Scholarship / Fellowship (cap 10)
+          3.3.2 Scholarship / Fellowship – This may be a degree or non-degree granting.
         </div>
         <TableHeader />
+
+        {/* a. International, competitive */}
+        <div className="px-4 py-2 text-sm font-semibold border-t">
+          a. International, competitive
+        </div>
         <Row
-          label="International (Degree) (5)"
-          credit={CAT3_CREDITS.sf_intl_degree}
-          field="sf_intl_degree"
+          label="Doctorate"
+          credit={CAT3_CREDITS.sf_a_intl_comp_doc}
+          field="sf_a_intl_comp_doc"
         />
         <Row
-          label="International (Non-Degree) (4)"
-          credit={CAT3_CREDITS.sf_intl_non}
-          field="sf_intl_non"
+          label="Masteral"
+          credit={CAT3_CREDITS.sf_a_intl_comp_mast}
+          field="sf_a_intl_comp_mast"
         />
         <Row
-          label="National (Degree) (3)"
-          credit={CAT3_CREDITS.sf_nat_degree}
-          field="sf_nat_degree"
+          label="Non-Degree"
+          credit={CAT3_CREDITS.sf_a_intl_comp_non}
+          field="sf_a_intl_comp_non"
+        />
+
+        {/* b. International, non-competitive */}
+        <div className="px-4 py-2 text-sm font-semibold border-t">
+          b. International, non-competitive
+        </div>
+        <Row
+          label="Doctorate"
+          credit={CAT3_CREDITS.sf_b_intl_noncomp_doc}
+          field="sf_b_intl_noncomp_doc"
         />
         <Row
-          label="National (Non-Degree) (2)"
-          credit={CAT3_CREDITS.sf_nat_non}
-          field="sf_nat_non"
+          label="Masteral"
+          credit={CAT3_CREDITS.sf_b_intl_noncomp_mast}
+          field="sf_b_intl_noncomp_mast"
+        />
+        <Row
+          label="Non-Degree"
+          credit={CAT3_CREDITS.sf_b_intl_noncomp_non}
+          field="sf_b_intl_noncomp_non"
+        />
+
+        {/* c. National / Regional, competitive */}
+        <div className="px-4 py-2 text-sm font-semibold border-t">
+          c. National / Regional, competitive
+        </div>
+        <Row
+          label="Doctorate"
+          credit={CAT3_CREDITS.sf_c_nat_comp_doc}
+          field="sf_c_nat_comp_doc"
+        />
+        <Row
+          label="Masteral"
+          credit={CAT3_CREDITS.sf_c_nat_comp_mast}
+          field="sf_c_nat_comp_mast"
+        />
+        <Row
+          label="Non-Degree"
+          credit={CAT3_CREDITS.sf_c_nat_comp_non}
+          field="sf_c_nat_comp_non"
+        />
+
+        {/* d. National / Regional, non-competitive */}
+        <div className="px-4 py-2 text-sm font-semibold border-t">
+          d. National / Regional, non-competitive
+        </div>
+        <Row
+          label="Doctorate"
+          credit={CAT3_CREDITS.sf_d_nat_noncomp_doc}
+          field="sf_d_nat_noncomp_doc"
+        />
+        <Row
+          label="Masteral"
+          credit={CAT3_CREDITS.sf_d_nat_noncomp_mast}
+          field="sf_d_nat_noncomp_mast"
+        />
+        <Row
+          label="Non-Degree"
+          credit={CAT3_CREDITS.sf_d_nat_noncomp_non}
+          field="sf_d_nat_noncomp_non"
         />
 
         <div className="flex justify-end items-center border-t bg-gray-50 px-4 py-2 text-sm">
@@ -2407,17 +2487,17 @@ function Category3Section({
         </div>
         <TableHeader />
         <Row
-          label="International (5)"
+          label="International"
           credit={CAT3_CREDITS.award_intl}
           field="award_intl"
         />
         <Row
-          label="National/Regional (3)"
+          label="National/Regional"
           credit={CAT3_CREDITS.award_nat}
           field="award_nat"
         />
         <Row
-          label="Local (1)"
+          label="Local"
           credit={CAT3_CREDITS.award_local}
           field="award_local"
         />
@@ -2437,7 +2517,7 @@ function Category3Section({
         </div>
         <TableHeader />
         <Row
-          label="Service-oriented project – per year (1)"
+          label="Service-oriented project – per year"
           credit={CAT3_CREDITS.co_service}
           field="co_service"
         />
@@ -2457,17 +2537,17 @@ function Category3Section({
         </div>
         <TableHeader />
         <Row
-          label="Engineering/Accounting/Medicine/Law/Teachers etc. (5)"
+          label="Engineering/Accounting/Medicine/Law/Teachers etc."
           credit={CAT3_CREDITS.pex_eng_law_teachers}
           field="pex_eng_law_teachers"
         />
         <Row
-          label="Marine Board / Master Electrician / similar (2)"
+          label="Marine Board / Master Electrician / similar"
           credit={CAT3_CREDITS.pex_marine_elec}
           field="pex_marine_elec"
         />
         <Row
-          label="Other trade skill certificate (1)"
+          label="Other trade skill certificate"
           credit={CAT3_CREDITS.pex_trade_other}
           field="pex_trade_other"
         />
@@ -2732,11 +2812,11 @@ function TechnologicalKnowledgeSection({
       {/* 4.4 Creative work */}
       <section className="rounded-lg border bg-white overflow-hidden">
         <div className="px-4 py-2 bg-blue-50 text-sm font-semibold">
-          4.4 Creative work (each criterion is 25% of 1 point)
+          4.4 Creative work
         </div>
         <TableHeader firstColLabel="Criterion" />
         <Row
-          label="a. Originality: 25% of 1"
+          label="a. Originality:"
           scale="1 to 5"
           credit={1}
           value={cwOriginality}
@@ -2744,7 +2824,7 @@ function TechnologicalKnowledgeSection({
           maxUnits={5}
         />
         <Row
-          label="b. Acceptability and recognition: 25% of 1"
+          label="b. Acceptability and recognition:"
           scale="1 to 5"
           credit={1}
           value={cwAcceptability}
@@ -2752,7 +2832,7 @@ function TechnologicalKnowledgeSection({
           maxUnits={5}
         />
         <Row
-          label="c. Relevance and value: 25% of 1"
+          label="c. Relevance and value:"
           scale="1 to 5"
           credit={1}
           value={cwRelevance}
@@ -2760,7 +2840,7 @@ function TechnologicalKnowledgeSection({
           maxUnits={5}
         />
         <Row
-          label="d. Documentation & evidence of dissemination: 25% of 1"
+          label="d. Documentation & evidence of dissemination:"
           scale="1 to 5"
           credit={1}
           value={cwDocumentation}

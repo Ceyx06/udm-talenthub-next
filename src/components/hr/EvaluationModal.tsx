@@ -22,29 +22,6 @@ interface EvaluationModalProps {
   onComplete?: () => void;
 }
 
-interface DetailedScores {
-  educational: {
-    degree: number;
-    training: number;
-    licenses: number;
-  };
-  experience: {
-    relevantYears: number;
-    teachingExp: number;
-    industryExp: number;
-  };
-  professionalDev: {
-    publications: number;
-    certifications: number;
-    awards: number;
-  };
-  technological: {
-    digitalLiteracy: number;
-    learningManagement: number;
-    researchTools: number;
-  };
-}
-
 export default function EvaluationModal({
   isOpen,
   onClose,
@@ -54,129 +31,283 @@ export default function EvaluationModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState<"cat1" | "cat2" | "cat3" | "cat4">("cat1");
 
-  const [educationalScore, setEducationalScore] = useState(0);
-  const [experienceScore, setExperienceScore] = useState(0);
+  // Category 1: Educational Qualifications
+  const [highestDegreeKey, setHighestDegreeKey] = useState("");
+  const [highestDegreePoints, setHighestDegreePoints] = useState(0);
+  const [additionalMasters, setAdditionalMasters] = useState(0);
+  const [additionalBachelors, setAdditionalBachelors] = useState(0);
+  const [additionalCreditsUnits, setAdditionalCreditsUnits] = useState(0);
+
+  // Category 2: Experience
+  const [stateYears, setStateYears] = useState(0);
+  const [otherInstitutionYears, setOtherInstitutionYears] = useState(0);
+  const [adminBreakdown, setAdminBreakdown] = useState({
+    president: 0,
+    vicePresident: 0,
+    dean: 0,
+    departmentHead: 0,
+  });
+  const [industryBreakdown, setIndustryBreakdown] = useState({
+    engineer: 0,
+    technician: 0,
+    skilledWorker: 0,
+  });
+  const [teachingBreakdown, setTeachingBreakdown] = useState({
+    cooperatingTeacher: 0,
+    basicEducation: 0,
+  });
+
+  // Category 3: Professional Development (simplified for now)
+  const [category3Units, setCategory3Units] = useState<Record<string, number>>({});
   const [professionalDevScore, setProfessionalDevScore] = useState(0);
-  const [technologicalScore, setTechnologicalScore] = useState(0);
 
-  const [detailedScores, setDetailedScores] = useState<DetailedScores>({
-    educational: { degree: 0, training: 0, licenses: 0 },
-    experience: { relevantYears: 0, teachingExp: 0, industryExp: 0 },
-    professionalDev: { publications: 0, certifications: 0, awards: 0 },
-    technological: { digitalLiteracy: 0, learningManagement: 0, researchTools: 0 },
+  // Category 4: Technological Skills
+  const [microsoftWord, setMicrosoftWord] = useState(0);
+  const [microsoftExcel, setMicrosoftExcel] = useState(0);
+  const [microsoftPowerpoint, setMicrosoftPowerpoint] = useState(0);
+  const [educationalAppsRating, setEducationalAppsRating] = useState(0);
+  const [educationalAppsCount, setEducationalAppsCount] = useState(0);
+  const [trainingBreakdown, setTrainingBreakdown] = useState({
+    international: 0,
+    national: 0,
+    local: 0,
+  });
+  const [creativeWorkBreakdown, setCreativeWorkBreakdown] = useState({
+    originality: 0,
+    acceptability: 0,
+    relevance: 0,
+    documentation: 0,
   });
 
   const [remarks, setRemarks] = useState("");
 
-  const totalScore = educationalScore + experienceScore + professionalDevScore + technologicalScore;
+  // Calculate scores
+  const educationalScore =
+    highestDegreePoints +
+    additionalMasters * 4 +
+    additionalBachelors * 3 +
+    additionalCreditsUnits * 1;
+
+  const experienceScore =
+    stateYears * 1 +
+    otherInstitutionYears * 0.75 +
+    adminBreakdown.president * 3 +
+    adminBreakdown.vicePresident * 2.5 +
+    adminBreakdown.dean * 2 +
+    adminBreakdown.departmentHead * 1 +
+    industryBreakdown.engineer * 1.5 +
+    industryBreakdown.technician * 1 +
+    industryBreakdown.skilledWorker * 0.5 +
+    teachingBreakdown.cooperatingTeacher * 1.5 +
+    teachingBreakdown.basicEducation * 1;
+
+  const technologicalScore =
+    microsoftWord +
+    microsoftExcel +
+    microsoftPowerpoint +
+    educationalAppsRating * educationalAppsCount +
+    trainingBreakdown.international * 5 +
+    trainingBreakdown.national * 3 +
+    trainingBreakdown.local * 2 +
+    creativeWorkBreakdown.originality * 0.25 +
+    creativeWorkBreakdown.acceptability * 0.25 +
+    creativeWorkBreakdown.relevance * 0.25 +
+    creativeWorkBreakdown.documentation * 0.25;
+
+  const totalScore =
+    educationalScore + experienceScore + professionalDevScore + technologicalScore;
   const { rank, rate } = calculateRankAndRate(totalScore);
   const isQualified = totalScore >= PASSING_SCORE;
 
+  // Degree options mapping
+  const degreeOptions = [
+    { key: "doctorate", label: "Doctorate Degree", points: 85 },
+    { key: "masters", label: "Master's Degree", points: 65 },
+    { key: "llb_md", label: "LLB / MD", points: 65 },
+    { key: "diploma", label: "Diploma Course (above bachelor's)", points: 55 },
+    { key: "bachelor4", label: "Bachelor's Degree (4 years)", points: 45 },
+    { key: "bachelor5", label: "Bachelor's Degree (5 years)", points: 50 },
+    { key: "bachelor6", label: "Bachelor's Degree (6 years)", points: 55 },
+    { key: "special3yr", label: "Special Course (3-year post secondary)", points: 30 },
+    { key: "special2yr", label: "Special Course (2-year post secondary)", points: 25 },
+  ];
+
+  // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setEducationalScore(0);
-      setExperienceScore(0);
+      setHighestDegreeKey("");
+      setHighestDegreePoints(0);
+      setAdditionalMasters(0);
+      setAdditionalBachelors(0);
+      setAdditionalCreditsUnits(0);
+      setStateYears(0);
+      setOtherInstitutionYears(0);
+      setAdminBreakdown({
+        president: 0,
+        vicePresident: 0,
+        dean: 0,
+        departmentHead: 0,
+      });
+      setIndustryBreakdown({
+        engineer: 0,
+        technician: 0,
+        skilledWorker: 0,
+      });
+      setTeachingBreakdown({
+        cooperatingTeacher: 0,
+        basicEducation: 0,
+      });
+      setCategory3Units({});
       setProfessionalDevScore(0);
-      setTechnologicalScore(0);
-      setDetailedScores({
-        educational: { degree: 0, training: 0, licenses: 0 },
-        experience: { relevantYears: 0, teachingExp: 0, industryExp: 0 },
-        professionalDev: { publications: 0, certifications: 0, awards: 0 },
-        technological: { digitalLiteracy: 0, learningManagement: 0, researchTools: 0 },
+      setMicrosoftWord(0);
+      setMicrosoftExcel(0);
+      setMicrosoftPowerpoint(0);
+      setEducationalAppsRating(0);
+      setEducationalAppsCount(0);
+      setTrainingBreakdown({
+        international: 0,
+        national: 0,
+        local: 0,
+      });
+      setCreativeWorkBreakdown({
+        originality: 0,
+        acceptability: 0,
+        relevance: 0,
+        documentation: 0,
       });
       setRemarks("");
       setError("");
       setSuccess(false);
+      setActiveTab("cat1");
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const eduTotal = Object.values(detailedScores.educational).reduce((a, b) => a + b, 0);
-    const expTotal = Object.values(detailedScores.experience).reduce((a, b) => a + b, 0);
-    const profTotal = Object.values(detailedScores.professionalDev).reduce((a, b) => a + b, 0);
-    const techTotal = Object.values(detailedScores.technological).reduce((a, b) => a + b, 0);
+  const handleDegreeChange = (key: string) => {
+    setHighestDegreeKey(key);
+    const selected = degreeOptions.find((d) => d.key === key);
+    setHighestDegreePoints(selected?.points || 0);
+  };
 
-    setEducationalScore(eduTotal);
-    setExperienceScore(expTotal);
-    setProfessionalDevScore(profTotal);
-    setTechnologicalScore(techTotal);
-  }, [detailedScores]);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!applicant) return;
 
-  const handleDetailedScoreChange = (
-    category: keyof DetailedScores,
-    field: string,
-    value: number
-  ) => {
-    setDetailedScores((prev) => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [field]: Math.max(0, value),
+  if (totalScore > 250) {
+    setError("Total score cannot exceed 250 points");
+    return;
+  }
+
+  if (totalScore < 0) {
+    setError("Total score cannot be negative");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+
+  try {
+    // Build the payload with ALL detailed data
+    const payload = {
+      applicationId: applicant.id,
+      
+      // Category 1 detailed data
+      highestDegreeKey,
+      highestDegreePoints,
+      additionalMasters,
+      additionalBachelors,
+      additionalCreditsUnits,
+      
+      // Category 2 detailed data
+      stateYears,
+      otherInstitutionYears,
+      adminBreakdown: {
+        president: adminBreakdown.president,
+        vicePresident: adminBreakdown.vicePresident,
+        dean: adminBreakdown.dean,
+        departmentHead: adminBreakdown.departmentHead,
       },
-    }));
-  };
+      industryBreakdown: {
+        engineer: industryBreakdown.engineer,
+        technician: industryBreakdown.technician,
+        skilledWorker: industryBreakdown.skilledWorker,
+      },
+      teachingBreakdown: {
+        cooperatingTeacher: teachingBreakdown.cooperatingTeacher,
+        basicEducation: teachingBreakdown.basicEducation,
+      },
+      
+      // Category 3 detailed data
+      category3Units,
+      professionalDevScore,
+      
+      // Category 4 detailed data
+      microsoftWord,
+      microsoftExcel,
+      microsoftPowerpoint,
+      educationalAppsRating,
+      educationalAppsCount,
+      trainingBreakdown: {
+        international: trainingBreakdown.international,
+        national: trainingBreakdown.national,
+        local: trainingBreakdown.local,
+      },
+      creativeWorkBreakdown: {
+        originality: creativeWorkBreakdown.originality,
+        acceptability: creativeWorkBreakdown.acceptability,
+        relevance: creativeWorkBreakdown.relevance,
+        documentation: creativeWorkBreakdown.documentation,
+      },
+      
+      // Calculated scores
+      educationalScore,
+      experienceScore,
+      technologicalScore,
+      totalScore,
+      rank,
+      ratePerHour: rate,
+      
+      // Other fields
+      evaluatedBy,
+      remarks,
+    };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!applicant) return;
+    // DEBUG: Log what we're sending
+    console.log('=== SENDING TO API ===');
+    console.log('Payload:', JSON.stringify(payload, null, 2));
+    console.log('=====================');
 
-    if (totalScore > 250) {
-      setError("Total score cannot exceed 250 points");
-      return;
+    const response = await fetch("/api/evaluations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to save evaluation");
     }
 
-    if (totalScore < 0) {
-      setError("Total score cannot be negative");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch("/api/evaluations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicationId: applicant.id,
-          educationalScore,
-          experienceScore,
-          professionalDevScore,
-          technologicalScore,
-          totalScore,
-          rank,
-          ratePerHour: rate,
-          detailedScores,
-          evaluatedBy,
-          remarks,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to save evaluation");
-      }
-
-      setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        window.location.reload();
-      }, 2000);
-    } catch (err: any) {
-      setError(err.message || "An error occurred while saving the evaluation");
-    } finally {
-      setLoading(false);
-    }
-  };
+    setSuccess(true);
+    setTimeout(() => {
+      onClose();
+      window.location.reload();
+    }, 2000);
+  } catch (err: any) {
+    setError(err.message || "An error occurred while saving the evaluation");
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!applicant || !isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto m-4">
         <div className="sticky top-0 bg-white border-b px-6 py-4 z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Evaluate Applicant</h2>
@@ -202,219 +333,817 @@ export default function EvaluationModal({
                 <span className="font-medium">Email:</span> {applicant.email}
               </div>
               <div>
-                <span className="font-medium">Position:</span> {applicant.desiredPosition || "N/A"}
+                <span className="font-medium">Position:</span>{" "}
+                {applicant.desiredPosition || "N/A"}
               </div>
               <div>
-                <span className="font-medium">Department:</span> {applicant.department || "N/A"}
+                <span className="font-medium">Department:</span>{" "}
+                {applicant.department || "N/A"}
               </div>
             </div>
           </div>
 
-          {/* Educational Background */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg">1. Educational Background (Max 80 points)</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Degree (Max 40)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="40"
-                  value={detailedScores.educational.degree}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("educational", "degree", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Training (Max 20)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  value={detailedScores.educational.training}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("educational", "training", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Licenses (Max 20)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  value={detailedScores.educational.licenses}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("educational", "licenses", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-            </div>
-            <div className="text-sm font-medium">
-              Subtotal: {educationalScore} / 80 points
-            </div>
+          {/* Tab Navigation */}
+          <div className="flex border-b">
+            <button
+              type="button"
+              onClick={() => setActiveTab("cat1")}
+              className={`px-4 py-2 font-medium ${
+                activeTab === "cat1"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Category 1
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("cat2")}
+              className={`px-4 py-2 font-medium ${
+                activeTab === "cat2"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Category 2
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("cat3")}
+              className={`px-4 py-2 font-medium ${
+                activeTab === "cat3"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Category 3
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("cat4")}
+              className={`px-4 py-2 font-medium ${
+                activeTab === "cat4"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Category 4
+            </button>
           </div>
 
-          {/* Experience */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg">2. Experience (Max 80 points)</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Relevant Years (Max 40)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="40"
-                  value={detailedScores.experience.relevantYears}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("experience", "relevantYears", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Teaching (Max 20)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  value={detailedScores.experience.teachingExp}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("experience", "teachingExp", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Industry (Max 20)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  value={detailedScores.experience.industryExp}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("experience", "industryExp", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-            </div>
-            <div className="text-sm font-medium">
-              Subtotal: {experienceScore} / 80 points
-            </div>
-          </div>
+          {/* Category 1: Educational Qualifications */}
+          {activeTab === "cat1" && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">
+                Category 1: Educational Qualifications (Max 85 points)
+              </h3>
 
-          {/* Professional Development */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg">3. Professional Development (Max 50 points)</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Publications (Max 25)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="25"
-                  value={detailedScores.professionalDev.publications}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("professionalDev", "publications", Number(e.target.value))
-                  }
+              {/* 1.1 Highest Degree */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  1.1 Highest Relevant Academic Degree
+                </label>
+                <select
+                  value={highestDegreeKey}
+                  onChange={(e) => handleDegreeChange(e.target.value)}
                   className="w-full px-3 py-2 border rounded-md"
-                />
+                >
+                  <option value="">Select degree...</option>
+                  {degreeOptions.map((opt) => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.label} ({opt.points} points)
+                    </option>
+                  ))}
+                </select>
+                <div className="text-sm text-gray-600">
+                  Points: {highestDegreePoints}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Certifications (Max 15)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="15"
-                  value={detailedScores.professionalDev.certifications}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("professionalDev", "certifications", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+
+              {/* 1.2 Additional Degrees */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  1.2 Additional Equivalent & Relevant Degrees
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Additional Master's Degrees (4 pts each)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={additionalMasters}
+                      onChange={(e) =>
+                        setAdditionalMasters(
+                          Math.max(0, Number(e.target.value) || 0)
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Additional Bachelor's Degrees (3 pts each)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={additionalBachelors}
+                      onChange={(e) =>
+                        setAdditionalBachelors(
+                          Math.max(0, Number(e.target.value) || 0)
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Points: {additionalMasters * 4 + additionalBachelors * 3}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Awards (Max 10)</label>
+
+              {/* 1.3 Additional Credits */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  1.3 Additional Credits (Max 10 points - 1 pt per 3-unit set)
+                </label>
                 <input
                   type="number"
                   min="0"
                   max="10"
-                  value={detailedScores.professionalDev.awards}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("professionalDev", "awards", Number(e.target.value))
+                  value={additionalCreditsUnits}
+                  onChange={(e) =>
+                    setAdditionalCreditsUnits(
+                      Math.min(10, Math.max(0, Number(e.target.value) || 0))
+                    )
                   }
                   className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Number of 3-unit sets"
                 />
+                <div className="text-sm text-gray-600">
+                  Points: {additionalCreditsUnits * 1}
+                </div>
               </div>
-            </div>
-            <div className="text-sm font-medium">
-              Subtotal: {professionalDevScore} / 50 points
-            </div>
-          </div>
 
-          {/* Technological Skills */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg">4. Technological Skills (Max 40 points)</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Digital Literacy (Max 15)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="15"
-                  value={detailedScores.technological.digitalLiteracy}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("technological", "digitalLiteracy", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">LMS (Max 15)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="15"
-                  value={detailedScores.technological.learningManagement}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("technological", "learningManagement", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Research Tools (Max 10)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={detailedScores.technological.researchTools}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleDetailedScoreChange("technological", "researchTools", Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+              <div className="bg-blue-50 p-3 rounded-md">
+                <span className="font-semibold">
+                  Category 1 Total: {educationalScore.toFixed(2)} / 85
+                </span>
               </div>
             </div>
-            <div className="text-sm font-medium">
-              Subtotal: {technologicalScore} / 40 points
+          )}
+
+          {/* Category 2: Experience */}
+          {activeTab === "cat2" && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">
+                Category 2: Experience & Professional Services (Max 25 points)
+              </h3>
+
+              {/* 2.1 Academic Service - State */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  2.1 Academic Service in State Institutions (1 pt per year)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={stateYears}
+                  onChange={(e) =>
+                    setStateYears(Math.max(0, Number(e.target.value) || 0))
+                  }
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Years of service"
+                />
+                <div className="text-sm text-gray-600">
+                  Points: {(stateYears * 1).toFixed(2)}
+                </div>
+              </div>
+
+              {/* 2.2 Academic Service - Other */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  2.2 Academic Service in Other HEIs/Private Institutions (0.75
+                  pts per year)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={otherInstitutionYears}
+                  onChange={(e) =>
+                    setOtherInstitutionYears(
+                      Math.max(0, Number(e.target.value) || 0)
+                    )
+                  }
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Years of service"
+                />
+                <div className="text-sm text-gray-600">
+                  Points: {(otherInstitutionYears * 0.75).toFixed(2)}
+                </div>
+              </div>
+
+              {/* 2.3 Administrative Designation */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  2.3 Administrative Designation (Years)
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">
+                      President (3 pts/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={adminBreakdown.president}
+                      onChange={(e) =>
+                        setAdminBreakdown({
+                          ...adminBreakdown,
+                          president: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Vice President (2.5 pts/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={adminBreakdown.vicePresident}
+                      onChange={(e) =>
+                        setAdminBreakdown({
+                          ...adminBreakdown,
+                          vicePresident: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Dean/Director (2 pts/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={adminBreakdown.dean}
+                      onChange={(e) =>
+                        setAdminBreakdown({
+                          ...adminBreakdown,
+                          dean: Math.max(0, Number(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Dept Head/Principal (1 pt/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={adminBreakdown.departmentHead}
+                      onChange={(e) =>
+                        setAdminBreakdown({
+                          ...adminBreakdown,
+                          departmentHead: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Points:{" "}
+                  {(
+                    adminBreakdown.president * 3 +
+                    adminBreakdown.vicePresident * 2.5 +
+                    adminBreakdown.dean * 2 +
+                    adminBreakdown.departmentHead * 1
+                  ).toFixed(2)}
+                </div>
+              </div>
+
+              {/* 2.4 Industry Experience */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  2.4 Industrial/Technical Experience (Years)
+                </label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Engineer/Manager (1.5 pts/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={industryBreakdown.engineer}
+                      onChange={(e) =>
+                        setIndustryBreakdown({
+                          ...industryBreakdown,
+                          engineer: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Technician (1 pt/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={industryBreakdown.technician}
+                      onChange={(e) =>
+                        setIndustryBreakdown({
+                          ...industryBreakdown,
+                          technician: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Skilled Worker (0.5 pts/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={industryBreakdown.skilledWorker}
+                      onChange={(e) =>
+                        setIndustryBreakdown({
+                          ...industryBreakdown,
+                          skilledWorker: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Points:{" "}
+                  {(
+                    industryBreakdown.engineer * 1.5 +
+                    industryBreakdown.technician * 1 +
+                    industryBreakdown.skilledWorker * 0.5
+                  ).toFixed(2)}
+                </div>
+              </div>
+
+              {/* 2.5 Other Teaching Experience */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  2.5 Other Teaching Experience (Years)
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Cooperating Teacher (1.5 pts/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={teachingBreakdown.cooperatingTeacher}
+                      onChange={(e) =>
+                        setTeachingBreakdown({
+                          ...teachingBreakdown,
+                          cooperatingTeacher: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Basic Education (1 pt/yr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={teachingBreakdown.basicEducation}
+                      onChange={(e) =>
+                        setTeachingBreakdown({
+                          ...teachingBreakdown,
+                          basicEducation: Math.max(
+                            0,
+                            Number(e.target.value) || 0
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Points:{" "}
+                  {(
+                    teachingBreakdown.cooperatingTeacher * 1.5 +
+                    teachingBreakdown.basicEducation * 1
+                  ).toFixed(2)}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-md">
+                <span className="font-semibold">
+                  Category 2 Total: {experienceScore.toFixed(2)} / 25
+                </span>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Category 3: Professional Development */}
+          {activeTab === "cat3" && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">
+                Category 3: Professional Development (Max 90 points)
+              </h3>
+              <p className="text-sm text-gray-600">
+                This category includes publications, expert services,
+                memberships, awards, etc. For now, enter the total calculated
+                score.
+              </p>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  Total Professional Development Score
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="90"
+                  step="0.01"
+                  value={professionalDevScore}
+                  onChange={(e) =>
+                    setProfessionalDevScore(
+                      Math.min(90, Math.max(0, Number(e.target.value) || 0))
+                    )
+                  }
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Enter calculated score (0-90)"
+                />
+              </div>
+              <div className="bg-blue-50 p-3 rounded-md">
+                <span className="font-semibold">
+                  Category 3 Total: {professionalDevScore.toFixed(2)} / 90
+                </span>
+              </div>
+              <div className="bg-yellow-50 p-3 rounded-md text-sm text-yellow-800">
+                <strong>Note:</strong> Category 3 has many subcategories
+                (publications, patents, training, memberships, etc.). Calculate
+                the detailed breakdown separately and enter the final score
+                here.
+              </div>
+            </div>
+          )}
+
+          {/* Category 4: Technological Skills */}
+          {activeTab === "cat4" && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">
+                Category 4: Technological Knowledge (Max 50 points)
+              </h3>
+
+              {/* 4.1 Microsoft Office */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  4.1 Basic Knowledge in Microsoft Office (1–5 rating each)
+                </label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">Word (1–5)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={microsoftWord}
+                      onChange={(e) =>
+                        setMicrosoftWord(
+                          Math.min(5, Math.max(0, Number(e.target.value) || 0))
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">Excel (1–5)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={microsoftExcel}
+                      onChange={(e) =>
+                        setMicrosoftExcel(
+                          Math.min(5, Math.max(0, Number(e.target.value) || 0))
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      PowerPoint (1–5)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={microsoftPowerpoint}
+                      onChange={(e) =>
+                        setMicrosoftPowerpoint(
+                          Math.min(5, Math.max(0, Number(e.target.value) || 0))
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Subtotal:{" "}
+                  {microsoftWord + microsoftExcel + microsoftPowerpoint}
+                </div>
+              </div>
+
+              {/* 4.2 Educational Apps */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  4.2 Educational / Related Apps
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">Rating (1–5)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={educationalAppsRating}
+                      onChange={(e) =>
+                        setEducationalAppsRating(
+                          Math.min(5, Math.max(0, Number(e.target.value) || 0))
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Number of Apps
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={educationalAppsCount}
+                      onChange={(e) =>
+                        setEducationalAppsCount(
+                          Math.max(0, Number(e.target.value) || 0)
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Subtotal: {educationalAppsRating * educationalAppsCount}
+                </div>
+              </div>
+
+              {/* 4.3 Training Course ≥ 1 Year */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  4.3 Training Course ≥ 1 Year (Ratings: International 1–5,
+                  National 1–3, Local 1–2)
+                </label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">
+                      International (×5)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={trainingBreakdown.international}
+                      onChange={(e) =>
+                        setTrainingBreakdown({
+                          ...trainingBreakdown,
+                          international: Math.min(
+                            5,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">National (×3)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="3"
+                      value={trainingBreakdown.national}
+                      onChange={(e) =>
+                        setTrainingBreakdown({
+                          ...trainingBreakdown,
+                          national: Math.min(
+                            3,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">Local (×2)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="2"
+                      value={trainingBreakdown.local}
+                      onChange={(e) =>
+                        setTrainingBreakdown({
+                          ...trainingBreakdown,
+                          local: Math.min(
+                            2,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Subtotal:{" "}
+                  {trainingBreakdown.international * 5 +
+                    trainingBreakdown.national * 3 +
+                    trainingBreakdown.local * 2}
+                </div>
+              </div>
+
+              {/* 4.4 Creative Work */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  4.4 Creative Work (Rating 1–5 each, 25% weight)
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Originality (×0.25)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={creativeWorkBreakdown.originality}
+                      onChange={(e) =>
+                        setCreativeWorkBreakdown({
+                          ...creativeWorkBreakdown,
+                          originality: Math.min(
+                            5,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Acceptability (×0.25)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={creativeWorkBreakdown.acceptability}
+                      onChange={(e) =>
+                        setCreativeWorkBreakdown({
+                          ...creativeWorkBreakdown,
+                          acceptability: Math.min(
+                            5,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Relevance (×0.25)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={creativeWorkBreakdown.relevance}
+                      onChange={(e) =>
+                        setCreativeWorkBreakdown({
+                          ...creativeWorkBreakdown,
+                          relevance: Math.min(
+                            5,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">
+                      Documentation (×0.25)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={creativeWorkBreakdown.documentation}
+                      onChange={(e) =>
+                        setCreativeWorkBreakdown({
+                          ...creativeWorkBreakdown,
+                          documentation: Math.min(
+                            5,
+                            Math.max(0, Number(e.target.value) || 0)
+                          ),
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Subtotal:{" "}
+                  {(
+                    creativeWorkBreakdown.originality * 0.25 +
+                    creativeWorkBreakdown.acceptability * 0.25 +
+                    creativeWorkBreakdown.relevance * 0.25 +
+                    creativeWorkBreakdown.documentation * 0.25
+                  ).toFixed(2)}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-md">
+                <span className="font-semibold">
+                  Category 4 Total: {technologicalScore.toFixed(2)} / 50
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Total Score Summary */}
-          <div className="bg-blue-50 p-4 rounded-lg space-y-2">
+          <div className="bg-blue-50 p-4 rounded-lg space-y-2 border-2 border-blue-200">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-lg">Total Score:</span>
-              <span className="text-2xl font-bold text-blue-600">{totalScore} / 250</span>
+              <span className="text-2xl font-bold text-blue-600">
+                {totalScore.toFixed(2)} / 250
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="font-semibold">Rank:</span>
-              <span className="text-lg font-semibold text-green-600">{rank}</span>
+              <span className="text-lg font-semibold text-green-600">
+                {rank}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="font-semibold">Rate per Hour:</span>
@@ -427,7 +1156,7 @@ export default function EvaluationModal({
                   isQualified ? "text-green-600" : "text-red-600"
                 }`}
               >
-                {isQualified ? "✓ QUALIFIED (HIRED)" : "✗ NOT QUALIFIED"}
+                {isQualified ? "✓ QUALIFIED" : "✗ NOT QUALIFIED"}
               </span>
             </div>
             {!isQualified && (
@@ -439,10 +1168,12 @@ export default function EvaluationModal({
 
           {/* Remarks */}
           <div>
-            <label className="block text-sm font-medium mb-1">Evaluation Remarks (Optional)</label>
+            <label className="block text-sm font-medium mb-1">
+              Evaluation Remarks (Optional)
+            </label>
             <textarea
               value={remarks}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setRemarks(e.target.value)}
+              onChange={(e) => setRemarks(e.target.value)}
               placeholder="Additional comments or observations about the applicant..."
               rows={4}
               className="w-full px-3 py-2 border rounded-md"
@@ -458,7 +1189,7 @@ export default function EvaluationModal({
 
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded">
-              Evaluation saved successfully! {isQualified && "Applicant has been hired."}
+              Evaluation saved successfully!
             </div>
           )}
 
